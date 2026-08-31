@@ -583,6 +583,7 @@ async function seedAppointments(
   timezone: string,
   openTime: string,
   closeTime: string,
+  locationId: string,
 ) {
   const todayYmd = ymdInTimeZone(Date.now(), timezone);
   const startYmd = shiftYmd(todayYmd, -Math.round((PAST_MONTHS * 365) / 12));
@@ -615,6 +616,7 @@ async function seedAppointments(
       appointmentRows.push({
         id: appointmentId,
         tenantId,
+        locationId,
         patientId,
         doctorUserId: slot.doctorUserId,
         type: service.type,
@@ -746,12 +748,13 @@ const DEMO_STOCK = [
   { name: 'Dental bibs', sku: 'INV-9902', category: 'Consumables', unit: 'packs', quantity: 240, maxQuantity: 250 },
 ] as const;
 
-async function seedInventory(tenantId: string, ownerId: string) {
+async function seedInventory(tenantId: string, ownerId: string, locationId: string) {
   const now = nowMs();
   await db.insert(inventoryItems).values(
     DEMO_STOCK.map((item) => ({
       id: ULID.random(),
       tenantId,
+      locationId,
       name: item.name,
       sku: item.sku,
       category: item.category,
@@ -780,6 +783,15 @@ async function main() {
 
   const passwordHash = await hash(CLINIC_PASSWORD);
   await ensureLocations(tenantId, ownerId, business.id);
+  const [primaryLocation] = await db
+    .select()
+    .from(locations)
+    .where(and(eq(locations.tenantId, tenantId), isNull(locations.deletedAt)))
+    .orderBy(locations.createdAt)
+    .limit(1);
+  if (!primaryLocation) {
+    throw new Error('Demo clinic location was not found.');
+  }
   const doctorUsers = await ensureDoctorsAndStaff(tenantId, ownerId, passwordHash);
   const patientRows = await seedPatients(tenantId, ownerId);
   await seedAppointments(
@@ -790,8 +802,9 @@ async function main() {
     business.timezone || TIMEZONE,
     '09:00',
     '21:00',
+    primaryLocation.id,
   );
-  await seedInventory(tenantId, ownerId);
+  await seedInventory(tenantId, ownerId, primaryLocation.id);
 
   const [patientTotal, appointmentTotal, locationTotal, vitalTotal, inventoryTotal] = await Promise.all([
     countForTenant(patients, tenantId),

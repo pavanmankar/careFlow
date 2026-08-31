@@ -14,6 +14,7 @@ type ApiFailure = { code: string; message: string };
 
 const TOKEN_KEY = 'careflow_access_token';
 const LEGACY_TOKEN_KEY = 'ubp_access_token';
+const LOCATION_KEY = 'careflow_active_location_id';
 
 function migrateLegacyToken(storage: Storage) {
   const legacy = storage.getItem(LEGACY_TOKEN_KEY);
@@ -54,9 +55,35 @@ export function setAccessToken(token: string | null) {
     window.sessionStorage.setItem(TOKEN_KEY, token);
   } else {
     window.sessionStorage.removeItem(TOKEN_KEY);
+    clearActiveLocationId();
   }
   window.sessionStorage.removeItem(LEGACY_TOKEN_KEY);
   window.localStorage.removeItem(LEGACY_TOKEN_KEY);
+}
+
+export function getActiveLocationId() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return window.sessionStorage.getItem(LOCATION_KEY);
+}
+
+export function setActiveLocationId(id: string | null) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  if (id) {
+    window.sessionStorage.setItem(LOCATION_KEY, id);
+  } else {
+    window.sessionStorage.removeItem(LOCATION_KEY);
+  }
+}
+
+export function clearActiveLocationId() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.sessionStorage.removeItem(LOCATION_KEY);
 }
 
 async function parse<T>(response: Response): Promise<T> {
@@ -112,6 +139,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getAccessToken();
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
+  }
+  const locationId = getActiveLocationId();
+  if (locationId) {
+    headers.set('X-Location-Id', locationId);
   }
   const baseUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/$/, '');
   inflight += 1;

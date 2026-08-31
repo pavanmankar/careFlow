@@ -310,6 +310,7 @@ async function seedAppointments(
   doctorIds: string[],
   patientIds: string[],
   timezone: string,
+  locationId: string,
 ) {
   const todayYmd = ymdInTimeZone(Date.now(), timezone);
   const slots = hourSlotsForDate(todayYmd, timezone, '09:00', '21:00');
@@ -338,6 +339,7 @@ async function seedAppointments(
     await db.insert(appointments).values({
       id: appointmentId,
       tenantId,
+      locationId,
       patientId,
       doctorUserId,
       type: spec.type,
@@ -437,12 +439,13 @@ async function seedAppointments(
   `);
 }
 
-async function seedInventory(tenantId: string, ownerId: string) {
+async function seedInventory(tenantId: string, ownerId: string, locationId: string) {
   const now = nowMs();
   await db.insert(inventoryItems).values(
     INVENTORY.map((item) => ({
       id: ULID.random(),
       tenantId,
+      locationId,
       name: item.name,
       sku: item.sku,
       category: item.category,
@@ -485,7 +488,7 @@ async function main() {
   await wipeClinicOperations(tenantId);
 
   const ownerPasswordHash = await hash(OWNER_PASSWORD);
-  await ensureLocation(tenantId, ownerId, business.id);
+  const locationId = await ensureLocation(tenantId, ownerId, business.id);
   const doctorUsers = await ensureDoctors(tenantId, ownerId, ownerPasswordHash);
   const patientIds = await seedPatients(tenantId, ownerId);
   await seedAppointments(
@@ -494,8 +497,9 @@ async function main() {
     doctorUsers.map((doctor) => doctor.id),
     patientIds,
     business.timezone || TIMEZONE,
+    locationId,
   );
-  await seedInventory(tenantId, ownerId);
+  await seedInventory(tenantId, ownerId, locationId);
 
   const [patientTotal, appointmentTotal, locationTotal, inventoryTotal] = await Promise.all([
     countForTenant(patients, tenantId),

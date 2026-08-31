@@ -17,6 +17,7 @@
     "db:seed:public-demo": "tsx src/db/seed-public-demo.ts",
     "db:migrate-metadata": "tsx src/db/run-migrate-metadata.ts",
     "db:migrate-subscription": "tsx src/db/run-migrate-subscription.ts",
+    "db:migrate-location-branch": "tsx src/db/run-migrate-location-branch.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

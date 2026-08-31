@@ -11,6 +11,7 @@ import { getRequestContext } from '@/lib/context';
 import { clinicHoursFromSettings, hourSlotsForDate } from '@/lib/clinic-hours';
 import { ensureDoctorProfile } from '@/lib/doctor-profile';
 import { AuthUser } from '@/modules/auth/auth.types';
+import { assertLocationForAppointments } from '@/lib/location-scope';
 
 function requireTenant() {
   const tenantId = getRequestContext()?.tenantId;
@@ -206,6 +207,7 @@ export async function setDoctorActive(userId: string, active: boolean, actor: Au
 }
 
 export async function listDoctorSlots(userId: string, date: string, excludeAppointmentId?: string) {
+  await assertLocationForAppointments();
   const doctor = await requireActiveDoctor(userId);
   const { tenantId, timezone, openTime, closeTime } = await clinicContext();
   const slots = hourSlotsForDate(date, timezone, openTime, closeTime);

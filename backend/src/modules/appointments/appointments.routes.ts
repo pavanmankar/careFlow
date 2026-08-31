@@ -4,6 +4,7 @@ import { parseDto } from '@/lib/http';
 import { wrap } from '@/middleware/error-handler';
 import { requireAuth, requirePermissions } from '@/middleware/auth';
 import { requireSubcriptionAccess } from '@/middleware/subscription';
+import { optionalLocation } from '@/middleware/location';
 import { PERMISSION_CODES } from '@/shared/types';
 import * as appointments from './appointments.service';
 import * as visit from './appointments.visit.service';
@@ -22,7 +23,7 @@ function tenantId() {
   return id;
 }
 
-appointmentsRouter.use(requireAuth, requireSubcriptionAccess);
+appointmentsRouter.use(requireAuth, requireSubcriptionAccess, optionalLocation);
 
 appointmentsRouter.get(
   '/',

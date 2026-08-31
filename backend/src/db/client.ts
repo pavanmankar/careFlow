@@ -71,6 +71,10 @@ export async function liveRoleIds(ids: string[]) {
   return new Set(rows.map((row) => row.id));
 }
 
+export function mysqlDatabaseName() {
+  return mysqlPoolOptions().database;
+}
+
 export async function pingDb() {
   await db.execute(sql`SELECT 1`);
 }

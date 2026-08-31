@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, Plus } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, getActiveLocationId } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { DataTable, TableHead, Th, Td, Tr } from '@/components/ui/data-table';
@@ -14,6 +14,7 @@ import { BookAppointmentModal } from '@/components/book-appointment-modal';
 import { DateRangeCalendar, toYmd } from '@/components/date-range-calendar';
 import { IconLink } from '@/components/ui/icon-button';
 import { ListSearch, useAppliedSearch } from '@/components/list-search';
+import { LocationRequiredBanner } from '@/components/location-required-banner';
 import {
   APPOINTMENT_STATUSES,
   APPOINTMENT_TYPES,
@@ -29,6 +30,7 @@ import {
 interface Me {
   permissions: string[];
   business: { timezone: string } | null;
+  locations?: Array<{ id: string }>;
 }
 
 interface StatusCount {
@@ -56,7 +58,11 @@ export default function AppointmentsPage() {
   }, [appliedSearch]);
   const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<Me>('/api/v1/auth/me') });
   const timezone = me.data?.business?.timezone ?? 'Asia/Kolkata';
-  const canCreate = me.data?.permissions.includes('APPOINTMENT_CREATE') ?? false;
+  const locationId = getActiveLocationId();
+  const hasLocations = (me.data?.locations?.length ?? 0) > 0;
+  const canBook = Boolean(locationId && hasLocations);
+  const canCreate = (me.data?.permissions.includes('APPOINTMENT_CREATE') ?? false) && canBook;
+  const canManageLocations = me.data?.permissions.includes('LOCATION_CREATE') ?? false;
   const params = new URLSearchParams({
     page: String(page),
     pageSize: String(DEFAULT_PAGE_SIZE),
@@ -78,7 +84,7 @@ export default function AppointmentsPage() {
     params.set('search', appliedSearch);
   }
   const appointments = useQuery({
-    queryKey: ['appointments', type, status, fromYmd, toYmd, page, appliedSearch],
+    queryKey: ['appointments', locationId, type, status, fromYmd, toYmd, page, appliedSearch],
     queryFn: () =>
       api.get<{ items: ClinicAppointment[]; total: number; statusCounts: StatusCount[] }>(
         `/api/v1/appointments?${params.toString()}`,
@@ -93,6 +99,7 @@ export default function AppointmentsPage() {
 
   return (
     <div className="space-y-4">
+      {!canBook ? <LocationRequiredBanner canManageLocations={canManageLocations} /> : null}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
           <ListSearch
@@ -163,8 +170,13 @@ export default function AppointmentsPage() {
             <Button
               className="shrink-0"
               onClick={() => setBookOpen(true)}
-              disabled={(doctors.data?.items.length ?? 0) === 0}
+              disabled={(doctors.data?.items.length ?? 0) === 0 || !canBook}
             >
+              <Plus className="mr-2 h-4 w-4" />
+              Book appointment
+            </Button>
+          ) : me.data?.permissions.includes('APPOINTMENT_CREATE') && !canBook ? (
+            <Button className="shrink-0" disabled>
               <Plus className="mr-2 h-4 w-4" />
               Book appointment
             </Button>

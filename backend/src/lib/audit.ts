@@ -1,5 +1,6 @@
 import { ULID } from '@/lib/id';
 import { utcNowMs } from '@/lib/time';
+import { clipIp, clipUserAgent } from '@/lib/request-meta';
 import { db } from '@/db/client';
 import { auditLogs } from '@/db/schema';
 import { Request } from 'express';
@@ -24,8 +25,8 @@ export async function writeAudit(entry: {
     action: entry.action,
     resource: entry.resource,
     resourceId: entry.resourceId ?? null,
-    ip: entry.ip,
-    userAgent: entry.userAgent ? entry.userAgent.slice(0, 512) : null,
+    ip: clipIp(entry.ip),
+    userAgent: clipUserAgent(entry.userAgent),
     createdAt: BigInt(utcNowMs()),
   });
 }

@@ -1,9 +1,9 @@
 import { and, count, eq, gte, isNull, lt, notInArray } from 'drizzle-orm';
 import { APPOINTMENT_STATUSES, ERROR_CODES } from '@/shared/types';
 import { db } from '@/db/client';
-import { appointmentCharges, appointments, businesses, patients } from '@/db/schema';
+import { appointmentCharges, appointments, businesses, locations, patients } from '@/db/schema';
 import { AppError } from '@/lib/errors';
-import { getRequestContext } from '@/lib/context';
+import { getLocationId, getRequestContext } from '@/lib/context';
 import { utcNowMs } from '@/lib/time';
 import { ymdInTimeZone, zonedLocalToUtcMs } from '@/lib/clinic-hours';
 
@@ -28,6 +28,7 @@ type ClinicRange = {
   endMs: number;
   timeZone: string;
   tenantId: string;
+  locationId: string | null;
 };
 
 type TimeBucket = { date: string; label: string; start: number; end: number };
@@ -163,10 +164,18 @@ function bucketsForRange(fromYmd: string, toYmd: string, timeZone: string): Time
 
 async function clinicRange(query: DashboardQuery): Promise<ClinicRange> {
   const tenantId = requireTenant();
-  const business = await db.query.businesses.findFirst({
-    where: and(eq(businesses.tenantId, tenantId), isNull(businesses.deletedAt)),
-  });
-  const timeZone = business?.timezone || 'Asia/Kolkata';
+  const locationId = getLocationId();
+  const [business, location] = await Promise.all([
+    db.query.businesses.findFirst({
+      where: and(eq(businesses.tenantId, tenantId), isNull(businesses.deletedAt)),
+    }),
+    locationId
+      ? db.query.locations.findFirst({
+          where: and(eq(locations.id, locationId), eq(locations.tenantId, tenantId), isNull(locations.deletedAt)),
+        })
+      : Promise.resolve(null),
+  ]);
+  const timeZone = location?.timezone || business?.timezone || 'Asia/Kolkata';
   const today = ymdInTimeZone(utcNowMs(), timeZone);
   const period = query.period ?? 'current';
   let from = query.from;
@@ -204,6 +213,7 @@ async function clinicRange(query: DashboardQuery): Promise<ClinicRange> {
     endMs: zonedLocalToUtcMs(shiftYmd(to, 1), 0, 0, timeZone),
     timeZone,
     tenantId,
+    locationId,
   };
 }
 
@@ -217,6 +227,7 @@ function appointmentWhere(range: ClinicRange) {
     isNull(appointments.deletedAt),
     gte(appointments.startsAt, BigInt(range.startMs)),
     lt(appointments.startsAt, BigInt(range.endMs)),
+    ...(range.locationId ? [eq(appointments.locationId, range.locationId)] : []),
   );
 }
 

@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, getActiveLocationId } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { AppointmentStatus } from '@/components/appointment-status';
 import { BookAppointmentModal } from '@/components/book-appointment-modal';
 import { RescheduleAppointmentModal } from '@/components/reschedule-appointment-modal';
 import { PortalLink } from '@/components/portal-navigation';
+import { LocationRequiredBanner } from '@/components/location-required-banner';
 import {
   APPOINTMENT_STATUSES,
   CLINIC_START_HOURS,
@@ -34,6 +35,7 @@ const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 interface Me {
   business: { timezone: string } | null;
   permissions: string[];
+  locations?: Array<{ id: string }>;
 }
 
 function startOfMonth(date: Date) {
@@ -88,10 +90,14 @@ export default function CalendarPage() {
 
   const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<Me>('/api/v1/auth/me') });
   const timezone = me.data?.business?.timezone ?? 'Asia/Kolkata';
-  const canCreate = me.data?.permissions.includes('APPOINTMENT_CREATE') ?? false;
-  const canUpdate = me.data?.permissions.includes('APPOINTMENT_UPDATE') ?? false;
+  const locationId = getActiveLocationId();
+  const hasLocations = (me.data?.locations?.length ?? 0) > 0;
+  const canBook = Boolean(locationId && hasLocations);
+  const canCreate = (me.data?.permissions.includes('APPOINTMENT_CREATE') ?? false) && canBook;
+  const canUpdate = (me.data?.permissions.includes('APPOINTMENT_UPDATE') ?? false) && canBook;
+  const canManageLocations = me.data?.permissions.includes('LOCATION_CREATE') ?? false;
   const doctors = useQuery({
-    queryKey: ['doctors'],
+    queryKey: ['doctors', locationId],
     queryFn: () => api.get<{ items: ClinicDoctor[] }>('/api/v1/doctors'),
   });
   const allDoctors = !doctorId;
@@ -120,7 +126,7 @@ export default function CalendarPage() {
   }
 
   const appointments = useQuery({
-    queryKey: ['appointments', 'calendar', doctorId, range.from, range.to],
+    queryKey: ['appointments', 'calendar', locationId, doctorId, range.from, range.to],
     queryFn: () => fetchCalendarAppointments(params),
   });
   const items = (appointments.data?.items ?? []).filter((row) => row.status !== 'Cancelled');
@@ -135,7 +141,7 @@ export default function CalendarPage() {
   }
 
   function openBook(date: Date, hour?: number) {
-    if (!canCreate) {
+    if (!canCreate || !canBook) {
       return;
     }
     const ymd = ymdInTimeZone(date.getTime(), timezone);
@@ -239,6 +245,7 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
+      {!canBook ? <LocationRequiredBanner canManageLocations={canManageLocations} /> : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex rounded-full bg-white p-1 shadow-[0_8px_24px_rgba(15,39,68,0.05)]">
           {(['Month', 'Week', 'Day'] as const).map((option) => (

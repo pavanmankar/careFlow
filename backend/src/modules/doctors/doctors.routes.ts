@@ -4,15 +4,17 @@ import { parseDto } from '@/lib/http';
 import { wrap } from '@/middleware/error-handler';
 import { requireAuth, requirePermissions } from '@/middleware/auth';
 import { requireSubcriptionAccess } from '@/middleware/subscription';
+import { optionalLocation } from '@/middleware/location';
 import { PERMISSION_CODES } from '@/shared/types';
 import * as doctors from './doctors.service';
 import { auditFromReq } from '@/lib/audit';
 
 export const doctorsRouter = Router();
 
+doctorsRouter.use(requireAuth, optionalLocation);
+
 doctorsRouter.get(
   '/',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.DOCTOR_READ),
   wrap(async (req, res) => {
     const data =
@@ -25,7 +27,6 @@ doctorsRouter.get(
 
 doctorsRouter.post(
   '/',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.DOCTOR_CREATE),
   wrap(async (req, res) => {
     const data = await doctors.createDoctor(parseDto(createDoctorSchema, req.body), req.authUser!);
@@ -36,7 +37,6 @@ doctorsRouter.post(
 
 doctorsRouter.get(
   '/:userId/slots',
-  requireAuth,
   requireSubcriptionAccess,
   requirePermissions(PERMISSION_CODES.APPOINTMENT_READ),
   wrap(async (req, res) => {
@@ -48,7 +48,6 @@ doctorsRouter.get(
 
 doctorsRouter.post(
   '/:userId/activate',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.DOCTOR_ACTIVATE),
   wrap(async (req, res) => {
     const data = await doctors.setDoctorActive(req.params.userId, true, req.authUser!);
@@ -59,7 +58,6 @@ doctorsRouter.post(
 
 doctorsRouter.post(
   '/:userId/deactivate',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.DOCTOR_ACTIVATE),
   wrap(async (req, res) => {
     const data = await doctors.setDoctorActive(req.params.userId, false, req.authUser!);
@@ -70,7 +68,6 @@ doctorsRouter.post(
 
 doctorsRouter.get(
   '/:userId',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.DOCTOR_READ),
   wrap(async (req, res) => {
     const data = await doctors.getDoctor(req.params.userId);
@@ -80,7 +77,6 @@ doctorsRouter.get(
 
 doctorsRouter.put(
   '/:userId',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.DOCTOR_UPDATE),
   wrap(async (req, res) => {
     const input = parseDto(updateDoctorSchema, req.body);

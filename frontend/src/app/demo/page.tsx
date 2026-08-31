@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import { api, ApiClientError, setAccessToken } from '@/lib/api';
 import { PUBLIC_DEMO } from '@/lib/demo';
+import { resolveBranchAfterAuth, type MeWithLocations } from '@/lib/location';
 import { ClinicLogo } from '@/components/clinic-logo';
 
 export default function DemoLoginPage() {
@@ -25,7 +26,8 @@ export default function DemoLoginPage() {
           return;
         }
         setAccessToken(data.accessToken);
-        router.replace('/dashboard');
+        const me = await api.get<MeWithLocations>('/api/v1/auth/me');
+        router.replace(resolveBranchAfterAuth(me));
       } catch (err) {
         if (cancelled) {
           return;

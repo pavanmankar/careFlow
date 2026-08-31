@@ -3,15 +3,17 @@ import { createInventoryItemSchema, paginationQuerySchema, updateInventoryItemSc
 import { parseDto } from '@/lib/http';
 import { wrap } from '@/middleware/error-handler';
 import { requireAuth, requirePermissions } from '@/middleware/auth';
+import { optionalLocation } from '@/middleware/location';
 import { PERMISSION_CODES } from '@/shared/types';
 import * as inventory from './inventory.service';
 import { auditFromReq } from '@/lib/audit';
 
 export const inventoryRouter = Router();
 
+inventoryRouter.use(requireAuth, optionalLocation);
+
 inventoryRouter.get(
   '/',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.INVENTORY_READ),
   wrap(async (req, res) => {
     const query = parseDto(paginationQuerySchema, req.query);
@@ -21,7 +23,6 @@ inventoryRouter.get(
 
 inventoryRouter.post(
   '/reset',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.INVENTORY_UPDATE),
   wrap(async (req, res) => {
     const data = await inventory.resetInventory(req.authUser!.userId);
@@ -32,7 +33,6 @@ inventoryRouter.post(
 
 inventoryRouter.post(
   '/',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.INVENTORY_CREATE),
   wrap(async (req, res) => {
     const data = await inventory.createInventoryItem(parseDto(createInventoryItemSchema, req.body), req.authUser!.userId);
@@ -43,7 +43,6 @@ inventoryRouter.post(
 
 inventoryRouter.patch(
   '/:id',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.INVENTORY_UPDATE),
   wrap(async (req, res) => {
     const data = await inventory.updateInventoryItem(

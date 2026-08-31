@@ -2,11 +2,14 @@ import { AsyncLocalStorage } from 'async_hooks';
 import { randomUUID } from 'crypto';
 import { NextFunction, Request, Response } from 'express';
 import { AuthUser } from '@/modules/auth/auth.types';
+import { AppError } from '@/lib/errors';
+import { ERROR_CODES } from '@/shared/types';
 
 export interface RequestContext {
   traceId: string;
   tenantId: string | null;
   userId: string | null;
+  locationId: string | null;
   roles: string[];
   permissions: string[];
 }
@@ -25,11 +28,27 @@ export function requireTenantId(): string {
   return tenantId;
 }
 
+export function requireLocationId(): string {
+  const locationId = storage.getStore()?.locationId;
+  if (!locationId) {
+    throw new AppError(
+      ERROR_CODES.LOCATION_REQUIRED,
+      'Add a clinic location before booking appointments.',
+      400,
+    );
+  }
+  return locationId;
+}
+
+export function getLocationId(): string | null {
+  return storage.getStore()?.locationId ?? null;
+}
+
 export function contextMiddleware(req: Request, _res: Response, next: NextFunction) {
   const headerTrace = req.headers['x-trace-id'];
   const traceId = (Array.isArray(headerTrace) ? headerTrace[0] : headerTrace) || randomUUID();
   storage.run(
-    { traceId, tenantId: null, userId: null, roles: [], permissions: [] },
+    { traceId, tenantId: null, userId: null, locationId: null, roles: [], permissions: [] },
     () => next(),
   );
 }
@@ -43,4 +62,12 @@ export function setAuthContext(user: AuthUser) {
   current.userId = user.userId;
   current.roles = user.roles;
   current.permissions = user.permissions;
+}
+
+export function setLocationContext(locationId: string | null) {
+  const current = storage.getStore();
+  if (!current) {
+    return;
+  }
+  current.locationId = locationId;
 }

@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { registerSchema } from '@/lib/validation';
 import { api, ApiClientError, setAccessToken, setApiBusy } from '@/lib/api';
+import { resolveBranchAfterAuth, type MeWithLocations } from '@/lib/location';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -89,7 +90,8 @@ export default function RegisterPage() {
         businessName: values.businessName,
       });
       setAccessToken(data.accessToken);
-      router.push('/dashboard');
+      const me = await api.get<MeWithLocations>('/api/v1/auth/me');
+      router.push(resolveBranchAfterAuth(me));
     } catch (err) {
       setBusy(false);
       setApiBusy(false);

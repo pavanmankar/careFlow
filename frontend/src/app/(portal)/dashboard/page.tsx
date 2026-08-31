@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Building2, CalendarDays, CircleCheck, Eye, Layers, UserPlus, UserRound } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, getActiveLocationId } from '@/lib/api';
 import { formatUtcMillis } from '@/lib/datetime';
 import {
   STATUS_COLORS,
@@ -231,6 +231,7 @@ function addDaysYmd(ymd: string, days: number) {
 function ClinicDashboard() {
   const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<Me>('/api/v1/auth/me') });
   const timezone = me.data?.business?.timezone ?? 'Asia/Kolkata';
+  const locationId = getActiveLocationId();
   const canReadAppointments = me.data?.permissions.includes('APPOINTMENT_READ') ?? false;
   const countsRange = useChartRange();
   const ageRange = useChartRange();
@@ -241,37 +242,37 @@ function ClinicDashboard() {
   const revenueRange = useChartRange();
 
   const counts = useQuery({
-    queryKey: ['dashboard', 'counts', countsRange.query],
+    queryKey: ['dashboard', 'counts', locationId, countsRange.query],
     queryFn: () => api.get<CountsData>(`/api/v1/dashboard/counts?${countsRange.query}`),
     enabled: countsRange.ready,
   });
   const age = useQuery({
-    queryKey: ['dashboard', 'patients-by-age', ageRange.query],
+    queryKey: ['dashboard', 'patients-by-age', locationId, ageRange.query],
     queryFn: () => api.get<AgeData>(`/api/v1/dashboard/patients-by-age?${ageRange.query}`),
     enabled: ageRange.ready,
   });
   const types = useQuery({
-    queryKey: ['dashboard', 'appointments-by-type', typeRange.query],
+    queryKey: ['dashboard', 'appointments-by-type', locationId, typeRange.query],
     queryFn: () => api.get<TypeData>(`/api/v1/dashboard/appointments-by-type?${typeRange.query}`),
     enabled: typeRange.ready,
   });
   const statuses = useQuery({
-    queryKey: ['dashboard', 'appointments-by-status', statusRange.query],
+    queryKey: ['dashboard', 'appointments-by-status', locationId, statusRange.query],
     queryFn: () => api.get<StatusData>(`/api/v1/dashboard/appointments-by-status?${statusRange.query}`),
     enabled: statusRange.ready,
   });
   const patientsOverTime = useQuery({
-    queryKey: ['dashboard', 'patients-over-time', patientsRange.query],
+    queryKey: ['dashboard', 'patients-over-time', locationId, patientsRange.query],
     queryFn: () => api.get<PointsData>(`/api/v1/dashboard/patients-over-time?${patientsRange.query}`),
     enabled: patientsRange.ready,
   });
   const appointmentsOverTime = useQuery({
-    queryKey: ['dashboard', 'appointments-over-time', appointmentsRange.query],
+    queryKey: ['dashboard', 'appointments-over-time', locationId, appointmentsRange.query],
     queryFn: () => api.get<PointsData>(`/api/v1/dashboard/appointments-over-time?${appointmentsRange.query}`),
     enabled: appointmentsRange.ready,
   });
   const revenue = useQuery({
-    queryKey: ['dashboard', 'revenue-over-time', revenueRange.query],
+    queryKey: ['dashboard', 'revenue-over-time', locationId, revenueRange.query],
     queryFn: () => api.get<RevenueData>(`/api/v1/dashboard/revenue-over-time?${revenueRange.query}`),
     enabled: revenueRange.ready,
   });
@@ -280,7 +281,7 @@ function ClinicDashboard() {
   const todayFrom = zonedLocalToUtcMs(todayYmd, 0, timezone);
   const todayTo = zonedLocalToUtcMs(addDaysYmd(todayYmd, 1), 0, timezone);
   const todayAppointments = useQuery({
-    queryKey: ['appointments', 'today', todayFrom, todayTo],
+    queryKey: ['appointments', 'today', locationId, todayFrom, todayTo],
     queryFn: () =>
       api.get<{ items: ClinicAppointment[]; total: number }>(
         `/api/v1/appointments?page=1&pageSize=2000&sortDirection=asc&from=${todayFrom}&to=${todayTo}`,

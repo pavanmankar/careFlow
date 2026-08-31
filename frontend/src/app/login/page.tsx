@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema, LoginInput } from '@/lib/validation';
 import { api, ApiClientError, setAccessToken, setApiBusy } from '@/lib/api';
+import { resolveBranchAfterAuth, type MeWithLocations } from '@/lib/location';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ClinicLogo } from '@/components/clinic-logo';
@@ -33,9 +34,10 @@ export default function LoginPage() {
     setBusy(true);
     setApiBusy(true, 'Signing in');
     try {
-      const data = await api.post<{ accessToken: string }>('/api/v1/auth/login', values);
+      const data = await api.post<{ accessToken: string } & MeWithLocations>('/api/v1/auth/login', values);
       setAccessToken(data.accessToken);
-      router.push('/dashboard');
+      const me = await api.get<MeWithLocations>('/api/v1/auth/me');
+      router.push(resolveBranchAfterAuth(me));
     } catch (err) {
       setBusy(false);
       setApiBusy(false);

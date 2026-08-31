@@ -6,7 +6,7 @@ import rateLimit from 'express-rate-limit';
 import swaggerUi from 'swagger-ui-express';
 import Redis from 'ioredis';
 import { config } from '@/lib/config';
-import { pingDb } from '@/db/client';
+import { mysqlDatabaseName, pingDb } from '@/db/client';
 import { contextMiddleware } from '@/lib/context';
 import { errorHandler, wrap } from '@/middleware/error-handler';
 import { authRouter } from '@/modules/auth/auth.routes';
@@ -26,6 +26,9 @@ import { toJsonUtcMillis } from '@/lib/time';
 
 export function createApp() {
   const app = express();
+  if (config.nodeEnv === 'production') {
+    app.set('trust proxy', 1);
+  }
   app.use(
     helmet({
       hsts: config.nodeEnv === 'production' ? { maxAge: 31536000, includeSubDomains: true } : false,
@@ -87,7 +90,7 @@ export function createApp() {
       } finally {
         redis.disconnect();
       }
-      res.json({ status: 'ok' });
+      res.json({ status: 'ok', database: mysqlDatabaseName() });
     }),
   );
 

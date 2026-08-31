@@ -9,12 +9,20 @@ From the backend directory:
 ```bash
 pnpm db:migrate
 pnpm db:seed
+pnpm db:migrate-location-branch
 pnpm db:seed:public-demo
 ```
 
 Then start the API and frontend as usual.
 
 Re-run `pnpm db:seed:public-demo` any time to reset demo patients, appointments, and inventory back to the sample dataset.
+
+## Branches (locations)
+
+- CareFlow does **not** create a default location on registration.
+- Calendar and appointment booking require at least one active location and an `X-Location-Id` header (selected branch).
+- After login: **0 locations** → portal works but booking is blocked; **1 location** → auto-selected; **2+** → `/select-branch` picker.
+- The public demo seed always includes one location so demo browsing works.
 
 ## Demo credentials
 

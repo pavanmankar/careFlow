@@ -11,7 +11,7 @@ import {
 } from '@/shared/types';
 import { LoginInput, RegisterInput, UpdateMeInput, UpdateMeRolesInput } from '@/shared/validation';
 import { db, liveRoleIds, nowMs, updateStamp } from '@/db/client';
-import { businesses, permissions, refreshTokens, rolePermissions, roles, tenants, userRoles, users } from '@/db/schema';
+import { businesses, locations, permissions, refreshTokens, rolePermissions, roles, tenants, userRoles, users } from '@/db/schema';
 import { AppError } from '@/lib/errors';
 import { config } from '@/lib/config';
 import { AuthUser } from './auth.types';
@@ -22,6 +22,7 @@ import { listOwnerAssignableRoles } from '@/modules/roles/roles.service';
 import { findActiveMetadataItem } from '@/modules/metadata/metadata.service';
 import { METADATA_KEYS } from '@/db/masters';
 import { evaluateAppointmentsEntitlement } from '@/lib/subscription';
+import { clipRequestMeta } from '@/lib/request-meta';
 
 export async function register(input: RegisterInput, meta: { ip?: string; userAgent?: string }) {
   const { userId, tenantId } = await provisionWorkspace(input);
@@ -242,13 +243,14 @@ async function issueSession(userId: string, meta: { ip?: string; userAgent?: str
   );
   const refreshToken = randomUUID() + randomUUID();
   const days = refreshDays();
+  const clipped = clipRequestMeta(meta);
   await db.insert(refreshTokens).values({
     id: ULID.random(),
     userId,
     tokenHash: hashToken(refreshToken),
     expiresAt: new Date(Date.now() + days * 24 * 60 * 60 * 1000),
-    ip: meta.ip,
-    userAgent: meta.userAgent,
+    ip: clipped.ip,
+    userAgent: clipped.userAgent,
     createdAt: nowMs(),
   });
   await db.update(users).set({ lastLoginAt: new Date(), ...updateStamp() }).where(eq(users.id, userId));
@@ -263,7 +265,7 @@ async function buildSessionPayload(userId: string, authUser?: AuthUser) {
   if (!user) {
     throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Authentication required.', 401);
   }
-  const [tenant, business, roleAssignments] = await Promise.all([
+  const [tenant, business, roleAssignments, locationRows] = await Promise.all([
     user.tenantId
       ? db.query.tenants.findFirst({ where: and(eq(tenants.id, user.tenantId), isNull(tenants.deletedAt)) })
       : Promise.resolve(null),
@@ -273,6 +275,25 @@ async function buildSessionPayload(userId: string, authUser?: AuthUser) {
         })
       : Promise.resolve(null),
     listRoleAssignments(userId, user.tenantId),
+    user.tenantId
+      ? db
+          .select({
+            id: locations.id,
+            name: locations.name,
+            code: locations.code,
+            timezone: locations.timezone,
+            status: locations.status,
+          })
+          .from(locations)
+          .where(
+            and(
+              eq(locations.tenantId, user.tenantId),
+              eq(locations.status, 'ACTIVE'),
+              isNull(locations.deletedAt),
+            ),
+          )
+          .orderBy(locations.name)
+      : Promise.resolve([]),
   ]);
   const typeItem = business
     ? await findActiveMetadataItem(METADATA_KEYS.BUSINESS_TYPE, business.businessType)
@@ -301,6 +322,7 @@ async function buildSessionPayload(userId: string, authUser?: AuthUser) {
           settings: business.settings,
         }
       : null,
+    locations: locationRows,
     roles: auth.roles,
     roleAssignments,
     permissions: auth.permissions,

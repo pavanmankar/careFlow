@@ -7,6 +7,7 @@ import { migrateVisitSchema } from './migrate-visit';
 import { migrateInventorySchema } from './migrate-inventory';
 import { migrateBusinessTypesToMetadata } from './migrate-metadata';
 import { migrateSubscriptionSchema } from './migrate-subscription';
+import { migrateLocationBranchSchema } from './migrate-location-branch';
 import { seedMetadataMasters } from '@/modules/metadata/metadata.service';
 
 export const MODULES = [
@@ -55,6 +56,7 @@ async function seedMasters() {
   await migrateVisitSchema();
   await migrateInventorySchema();
   await migrateSubscriptionSchema();
+  await migrateLocationBranchSchema();
   await seedMetadataMasters();
   const now = nowMs();
 

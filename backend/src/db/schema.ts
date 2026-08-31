@@ -302,6 +302,7 @@ export const appointments = mysqlTable(
   {
     id: id().primaryKey(),
     tenantId: id('tenantId').notNull(),
+    locationId: id('locationId'),
     patientId: id('patientId').notNull(),
     doctorUserId: id('doctorUserId').notNull(),
     type: varchar('type', { length: 64 }).notNull(),
@@ -328,6 +329,7 @@ export const appointments = mysqlTable(
     index('appointments_tenantId_doctorUserId_startsAt_idx').on(table.tenantId, table.doctorUserId, table.startsAt),
     index('appointments_tenantId_patientId_idx').on(table.tenantId, table.patientId),
     index('appointments_tenantId_startsAt_idx').on(table.tenantId, table.startsAt),
+    index('appointments_tenantId_locationId_startsAt_idx').on(table.tenantId, table.locationId, table.startsAt),
   ],
 );
 
@@ -336,6 +338,7 @@ export const inventoryItems = mysqlTable(
   {
     id: id().primaryKey(),
     tenantId: id('tenantId').notNull(),
+    locationId: id('locationId'),
     name: varchar('name', { length: 255 }).notNull(),
     sku: varchar('sku', { length: 64 }).notNull(),
     category: varchar('category', { length: 64 }).notNull(),
@@ -349,8 +352,9 @@ export const inventoryItems = mysqlTable(
     deletedAt: stamp(),
   },
   (table) => [
-    uniqueIndex('inventory_items_tenantId_sku_key').on(table.tenantId, table.sku),
+    uniqueIndex('inventory_items_tenantId_locationId_sku_key').on(table.tenantId, table.locationId, table.sku),
     index('inventory_items_tenantId_idx').on(table.tenantId),
+    index('inventory_items_tenantId_locationId_idx').on(table.tenantId, table.locationId),
   ],
 );
 

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { AlertTriangle, Package, Plus, RefreshCw } from 'lucide-react';
-import { api, ApiClientError } from '@/lib/api';
+import { api, ApiClientError, getActiveLocationId } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -67,8 +67,9 @@ export default function InventoryPage() {
   const [resetOpen, setResetOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<Me>('/api/v1/auth/me') });
+  const locationId = getActiveLocationId();
   const inventory = useQuery({
-    queryKey: ['inventory', page],
+    queryKey: ['inventory', locationId, page],
     queryFn: () =>
       api.get<InventoryList>(`/api/v1/inventory?page=${page}&pageSize=${DEFAULT_PAGE_SIZE}`),
   });

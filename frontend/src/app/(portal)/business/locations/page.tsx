@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { api, ApiClientError } from '@/lib/api';
+import { api, ApiClientError, getActiveLocationId, setActiveLocationId } from '@/lib/api';
 import { formatUtcMillis } from '@/lib/datetime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,9 +32,13 @@ export default function LocationsPage() {
   const form = useForm({ defaultValues: { name: '', code: '', timezone: 'Asia/Kolkata' } });
   const create = useMutation({
     mutationFn: (values: { name: string; code: string; timezone: string }) =>
-      api.post('/api/v1/locations', values),
-    onSuccess: () => {
+      api.post<{ id: string }>('/api/v1/locations', values),
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['locations'] });
+      qc.invalidateQueries({ queryKey: ['me'] });
+      if (!getActiveLocationId() && data?.id) {
+        setActiveLocationId(data.id);
+      }
       form.reset();
       setError(null);
     },

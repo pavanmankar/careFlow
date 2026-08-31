@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { ULID } from '@/lib/id';
 import { utcNowMs } from '@/lib/time';
 import { ERROR_CODES } from '@/shared/types';
@@ -15,6 +15,8 @@ import {
 } from '@/db/schema';
 import { AppError } from '@/lib/errors';
 import { expireOverdueConfirmedAppointments } from '@/jobs/expire-appointments';
+import { getLocationId } from '@/lib/context';
+import { assertLocationForAppointments } from '@/lib/location-scope';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -38,8 +40,14 @@ function assertWithinSlot(startsAt: bigint, endsAt: bigint, now: bigint) {
 
 export async function getVisit(id: string, tenantId: string) {
   await expireOverdueConfirmedAppointments();
+  const locationId = getLocationId();
   const row = await db.query.appointments.findFirst({
-    where: and(eq(appointments.id, id), eq(appointments.tenantId, tenantId), isNull(appointments.deletedAt)),
+    where: and(
+      eq(appointments.id, id),
+      eq(appointments.tenantId, tenantId),
+      isNull(appointments.deletedAt),
+      ...(locationId ? [eq(appointments.locationId, locationId)] : []),
+    ),
     with: {
       patient: true,
       doctor: { with: { doctorProfile: true } },
@@ -146,8 +154,14 @@ export async function getVisit(id: string, tenantId: string) {
 }
 
 export async function saveVisit(id: string, tenantId: string, actorId: string, input: UpdateVisitInput) {
+  const locationId = await assertLocationForAppointments();
   const current = await db.query.appointments.findFirst({
-    where: and(eq(appointments.id, id), eq(appointments.tenantId, tenantId), isNull(appointments.deletedAt)),
+    where: and(
+      eq(appointments.id, id),
+      eq(appointments.tenantId, tenantId),
+      eq(appointments.locationId, locationId),
+      isNull(appointments.deletedAt),
+    ),
   });
   if (!current) {
     throw new AppError(ERROR_CODES.APPOINTMENT_NOT_FOUND, 'The requested resource was not found.', 404);
@@ -255,8 +269,14 @@ export async function setVisitStatus(
   cancelReason?: string | null,
 ) {
   await expireOverdueConfirmedAppointments();
+  const locationId = await assertLocationForAppointments();
   const row = await db.query.appointments.findFirst({
-    where: and(eq(appointments.id, id), eq(appointments.tenantId, tenantId), isNull(appointments.deletedAt)),
+    where: and(
+      eq(appointments.id, id),
+      eq(appointments.tenantId, tenantId),
+      eq(appointments.locationId, locationId),
+      isNull(appointments.deletedAt),
+    ),
   });
   if (!row) {
     throw new AppError(ERROR_CODES.APPOINTMENT_NOT_FOUND, 'The requested resource was not found.', 404);

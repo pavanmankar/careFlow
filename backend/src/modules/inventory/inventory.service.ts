@@ -5,7 +5,8 @@ import { CreateInventoryItemInput, UpdateInventoryItemInput } from '@/shared/val
 import { createStamps, db, likeContains, omitUndefined, updateStamp } from '@/db/client';
 import { inventoryItems } from '@/db/schema';
 import { AppError } from '@/lib/errors';
-import { getRequestContext } from '@/lib/context';
+import { getLocationId, getRequestContext } from '@/lib/context';
+import { assertLocationForInventory } from '@/lib/location-scope';
 
 export type InventoryStatus = 'Available' | 'Low stock' | 'Critical';
 
@@ -69,11 +70,17 @@ function countsFromRows(rows: Array<{ quantity: number; maxQuantity: number }>) 
   return counts;
 }
 
-async function nextSku(tenantId: string) {
+async function nextSku(tenantId: string, locationId: string) {
   const rows = await db
     .select({ sku: inventoryItems.sku })
     .from(inventoryItems)
-    .where(and(eq(inventoryItems.tenantId, tenantId), isNull(inventoryItems.deletedAt)));
+    .where(
+      and(
+        eq(inventoryItems.tenantId, tenantId),
+        eq(inventoryItems.locationId, locationId),
+        isNull(inventoryItems.deletedAt),
+      ),
+    );
   let next = 1024;
   for (const row of rows) {
     const match = /^INV-(\d+)$/i.exec(row.sku);
@@ -86,8 +93,14 @@ async function nextSku(tenantId: string) {
 
 async function requireItem(id: string) {
   const tenantId = requireTenant();
+  const locationId = getLocationId();
   const row = await db.query.inventoryItems.findFirst({
-    where: and(eq(inventoryItems.id, id), eq(inventoryItems.tenantId, tenantId), isNull(inventoryItems.deletedAt)),
+    where: and(
+      eq(inventoryItems.id, id),
+      eq(inventoryItems.tenantId, tenantId),
+      isNull(inventoryItems.deletedAt),
+      ...(locationId ? [eq(inventoryItems.locationId, locationId)] : []),
+    ),
   });
   if (!row) {
     throw new AppError(ERROR_CODES.INVENTORY_NOT_FOUND, 'The requested resource was not found.', 404);
@@ -95,9 +108,14 @@ async function requireItem(id: string) {
   return row;
 }
 
-async function assertSkuFree(tenantId: string, sku: string, exceptId?: string) {
+async function assertSkuFree(tenantId: string, locationId: string, sku: string, exceptId?: string) {
   const existing = await db.query.inventoryItems.findFirst({
-    where: and(eq(inventoryItems.tenantId, tenantId), eq(inventoryItems.sku, sku), isNull(inventoryItems.deletedAt)),
+    where: and(
+      eq(inventoryItems.tenantId, tenantId),
+      eq(inventoryItems.locationId, locationId),
+      eq(inventoryItems.sku, sku),
+      isNull(inventoryItems.deletedAt),
+    ),
   });
   if (existing && existing.id !== exceptId) {
     throw new AppError(ERROR_CODES.CONFLICT, 'An item with this SKU already exists.', 409);
@@ -111,12 +129,15 @@ export async function listInventory(query: {
   sortDirection?: 'asc' | 'desc';
 }) {
   const tenantId = requireTenant();
+  const locationId = getLocationId();
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? 10;
   const sortDirection = query.sortDirection ?? 'asc';
+  const locationFilter = locationId ? [eq(inventoryItems.locationId, locationId)] : [];
   const filters = [
     eq(inventoryItems.tenantId, tenantId),
     isNull(inventoryItems.deletedAt),
+    ...locationFilter,
     ...(query.search
       ? [
           or(
@@ -128,6 +149,7 @@ export async function listInventory(query: {
       : []),
   ];
   const where = and(...filters);
+  const scopeWhere = and(eq(inventoryItems.tenantId, tenantId), isNull(inventoryItems.deletedAt), ...locationFilter);
   const [rows, totals, stockRows] = await Promise.all([
     db
       .select()
@@ -140,7 +162,7 @@ export async function listInventory(query: {
     db
       .select({ quantity: inventoryItems.quantity, maxQuantity: inventoryItems.maxQuantity })
       .from(inventoryItems)
-      .where(and(eq(inventoryItems.tenantId, tenantId), isNull(inventoryItems.deletedAt))),
+      .where(scopeWhere),
   ]);
   return {
     items: rows.map(serialize),
@@ -153,15 +175,17 @@ export async function listInventory(query: {
 
 export async function createInventoryItem(input: CreateInventoryItemInput, actorId: string) {
   const tenantId = requireTenant();
-  const sku = input.sku?.trim() ? input.sku.trim().toUpperCase() : await nextSku(tenantId);
+  const locationId = await assertLocationForInventory();
+  const sku = input.sku?.trim() ? input.sku.trim().toUpperCase() : await nextSku(tenantId, locationId);
   if (input.quantity > input.maxQuantity) {
     throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Quantity cannot be greater than max quantity.', 400);
   }
-  await assertSkuFree(tenantId, sku);
+  await assertSkuFree(tenantId, locationId, sku);
   const id = ULID.random();
   await db.insert(inventoryItems).values({
     id,
     tenantId,
+    locationId,
     name: input.name.trim(),
     sku,
     category: input.category,
@@ -177,13 +201,14 @@ export async function createInventoryItem(input: CreateInventoryItemInput, actor
 
 export async function updateInventoryItem(id: string, input: UpdateInventoryItemInput, actorId: string) {
   const row = await requireItem(id);
+  const locationId = row.locationId ?? (await assertLocationForInventory());
   const nextQty = input.quantity ?? row.quantity;
   const nextMax = input.maxQuantity ?? row.maxQuantity;
   if (nextQty > nextMax) {
     throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Quantity cannot be greater than max quantity.', 400);
   }
   if (input.sku?.trim()) {
-    await assertSkuFree(row.tenantId, input.sku.trim().toUpperCase(), row.id);
+    await assertSkuFree(row.tenantId, locationId, input.sku.trim().toUpperCase(), row.id);
   }
   await db
     .update(inventoryItems)
@@ -205,9 +230,16 @@ export async function updateInventoryItem(id: string, input: UpdateInventoryItem
 
 export async function resetInventory(actorId: string) {
   const tenantId = requireTenant();
+  const locationId = await assertLocationForInventory();
   await db
     .update(inventoryItems)
     .set({ quantity: 0, updatedBy: actorId, ...updateStamp() })
-    .where(and(eq(inventoryItems.tenantId, tenantId), isNull(inventoryItems.deletedAt)));
+    .where(
+      and(
+        eq(inventoryItems.tenantId, tenantId),
+        eq(inventoryItems.locationId, locationId),
+        isNull(inventoryItems.deletedAt),
+      ),
+    );
   return listInventory({ page: 1, pageSize: 10 });
 }

@@ -6,11 +6,12 @@ import { CreateAppointmentInput, RescheduleAppointmentInput } from '@/shared/val
 import { contains, db, likeContains, updateStamp } from '@/db/client';
 import { appointments, businesses, patients } from '@/db/schema';
 import { AppError } from '@/lib/errors';
-import { getRequestContext } from '@/lib/context';
+import { getLocationId, getRequestContext } from '@/lib/context';
 import { clinicHoursFromSettings, hourSlotsForDate } from '@/lib/clinic-hours';
 import { requireDoctor } from '@/modules/doctors/doctors.service';
 import { requireAppointmentType } from '@/modules/metadata/metadata.service';
 import { expireOverdueConfirmedAppointments } from '@/jobs/expire-appointments';
+import { assertLocationForAppointments } from '@/lib/location-scope';
 
 const CANCELLED = 'Cancelled';
 const EXPIRED = 'Expired';
@@ -64,13 +65,16 @@ export async function listAppointments(query: {
 }) {
   await expireOverdueConfirmedAppointments();
   const tenantId = requireTenant();
+  const locationId = getLocationId();
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? 10;
   const sortDirection = query.sortDirection === 'asc' ? 'asc' : 'desc';
   const byPatientName = await patientNameFilter(tenantId, query.search);
+  const locationFilter = locationId ? [eq(appointments.locationId, locationId)] : [];
   const filters = [
     eq(appointments.tenantId, tenantId),
     isNull(appointments.deletedAt),
+    ...locationFilter,
     ...(query.type ? [eq(appointments.type, query.type)] : []),
     ...(query.status ? [eq(appointments.status, query.status)] : []),
     ...(query.doctorUserId ? [eq(appointments.doctorUserId, query.doctorUserId)] : []),
@@ -82,6 +86,7 @@ export async function listAppointments(query: {
   const countFilters = [
     eq(appointments.tenantId, tenantId),
     isNull(appointments.deletedAt),
+    ...locationFilter,
     ...(query.type ? [eq(appointments.type, query.type)] : []),
     ...(query.doctorUserId ? [eq(appointments.doctorUserId, query.doctorUserId)] : []),
     ...(query.patientId ? [eq(appointments.patientId, query.patientId)] : []),
@@ -124,8 +129,14 @@ export async function listAppointments(query: {
 
 export async function getAppointment(id: string) {
   const tenantId = requireTenant();
+  const locationId = getLocationId();
   const row = await db.query.appointments.findFirst({
-    where: and(eq(appointments.id, id), eq(appointments.tenantId, tenantId), isNull(appointments.deletedAt)),
+    where: and(
+      eq(appointments.id, id),
+      eq(appointments.tenantId, tenantId),
+      isNull(appointments.deletedAt),
+      ...(locationId ? [eq(appointments.locationId, locationId)] : []),
+    ),
     with: {
       patient: true,
       doctor: { with: { doctorProfile: true } },
@@ -139,6 +150,7 @@ export async function getAppointment(id: string) {
 
 export async function createAppointment(input: CreateAppointmentInput, actorId: string) {
   const tenantId = requireTenant();
+  const locationId = await assertLocationForAppointments();
   const doctor = await requireDoctor(input.doctorUserId);
   const appointmentType = await requireAppointmentType(input.type);
   const business = await db.query.businesses.findFirst({
@@ -202,6 +214,7 @@ export async function createAppointment(input: CreateAppointmentInput, actorId: 
   await db.insert(appointments).values({
     id: appointmentId,
     tenantId,
+    locationId,
     patientId: patient.id,
     doctorUserId: doctor.id,
     type: appointmentType.name,
@@ -228,9 +241,15 @@ export async function createAppointment(input: CreateAppointmentInput, actorId: 
 
 export async function rescheduleAppointment(id: string, input: RescheduleAppointmentInput, actorId: string) {
   const tenantId = requireTenant();
+  const locationId = await assertLocationForAppointments();
   await expireOverdueConfirmedAppointments();
   const existing = await db.query.appointments.findFirst({
-    where: and(eq(appointments.id, id), eq(appointments.tenantId, tenantId), isNull(appointments.deletedAt)),
+    where: and(
+      eq(appointments.id, id),
+      eq(appointments.tenantId, tenantId),
+      eq(appointments.locationId, locationId),
+      isNull(appointments.deletedAt),
+    ),
   });
   if (!existing) {
     throw new AppError(ERROR_CODES.APPOINTMENT_NOT_FOUND, 'Appointment not found.', 404);

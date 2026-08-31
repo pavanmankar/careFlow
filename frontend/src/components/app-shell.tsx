@@ -21,6 +21,7 @@ import { UserMenu } from '@/components/user-menu';
 import { ClinicLogo } from '@/components/clinic-logo';
 import { SessionTimeout } from '@/components/session-timeout';
 import { PortalLink, usePortalNavigate, usePortalPath } from '@/components/portal-navigation';
+import { BranchSwitcher } from '@/components/branch-switcher';
 import {
   AppointmentsEntitlement,
   SubscriptionRequiredModal,
@@ -180,6 +181,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {navOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
         <ClinicLogo compact />
+        <BranchSwitcher />
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-base font-semibold text-navy-900 md:text-lg">{copy.title}</h1>
           {copy.subtitle && <p className="truncate text-xs text-slate-500">{copy.subtitle}</p>}
@@ -231,6 +233,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                   />
                 )}
                 {can('INVENTORY_READ') && <NavLink href="/inventory" label="Inventory" icon={Package} pathname={pathname} />}
+                {can('LOCATION_READ') && (
+                  <NavLink href="/business/locations" label="Locations" icon={Building2} pathname={pathname} />
+                )}
               </>
             )}
             {showUserManagement && (

@@ -3,12 +3,13 @@ import { dashboardQuerySchema } from '@/shared/validation';
 import { parseDto } from '@/lib/http';
 import { wrap } from '@/middleware/error-handler';
 import { requireAuth, requirePermissions } from '@/middleware/auth';
+import { optionalLocation } from '@/middleware/location';
 import { PERMISSION_CODES } from '@/shared/types';
 import * as dashboard from './dashboard.service';
 
 export const dashboardRouter = Router();
 
-const readCharts = [requireAuth, requirePermissions(PERMISSION_CODES.PATIENT_READ, PERMISSION_CODES.APPOINTMENT_READ)];
+const readCharts = [requireAuth, optionalLocation, requirePermissions(PERMISSION_CODES.PATIENT_READ, PERMISSION_CODES.APPOINTMENT_READ)];
 
 dashboardRouter.get(
   '/counts',
