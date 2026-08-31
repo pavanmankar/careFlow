@@ -7,15 +7,23 @@ import * as schema from './schema';
 import { roles } from './schema';
 
 function mysqlPoolOptions() {
-  const url = config.databaseUrl.replace('@localhost:', '@127.0.0.1:');
+  const raw = config.databaseUrl.replace('@localhost:', '@127.0.0.1:');
+  const parsed = new URL(raw);
+  const isLocal = parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost';
+  const database = parsed.pathname.replace(/^\//, '').split('?')[0];
   return {
-    uri: url,
+    host: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : 3306,
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    database,
     waitForConnections: true,
-    connectionLimit: 10,
+    connectionLimit: isLocal ? 10 : 4,
     queueLimit: 0,
     enableKeepAlive: true,
-    connectTimeout: 5000,
+    connectTimeout: isLocal ? 5000 : 20000,
     timezone: 'Z' as const,
+    ssl: isLocal ? undefined : { rejectUnauthorized: false },
   };
 }
 
