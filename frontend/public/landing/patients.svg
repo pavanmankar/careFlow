@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 750" role="img" aria-label="CareFlow patients preview">
+  <rect width="1200" height="750" fill="#E6F4F1"/>
+  <rect x="60" y="60" width="1080" height="630" rx="24" fill="#ffffff"/>
+  <rect x="90" y="90" width="960" height="70" rx="16" fill="#F8F9FA"/>
+  <text x="120" y="135" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="28" font-weight="700">Patients</text>
+  <rect x="90" y="190" width="960" height="64" rx="14" fill="#F8F9FA"/>
+  <rect x="90" y="270" width="960" height="64" rx="14" fill="#ffffff" stroke="#E2E8F0"/>
+  <rect x="90" y="350" width="960" height="64" rx="14" fill="#ffffff" stroke="#E2E8F0"/>
+  <rect x="90" y="430" width="960" height="64" rx="14" fill="#ffffff" stroke="#E2E8F0"/>
+  <rect x="90" y="510" width="960" height="64" rx="14" fill="#ffffff" stroke="#E2E8F0"/>
+  <text x="120" y="230" fill="#64748b" font-family="Arial, sans-serif" font-size="18">Name · Phone · Blood group · Last visit</text>
+  <text x="120" y="310" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="20" font-weight="600">Rahul Mehta · 9876500001 · O+</text>
+  <text x="120" y="390" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="20" font-weight="600">Priya Sharma · 9876500002 · A+</text>
+  <text x="120" y="470" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="20" font-weight="600">Vikram Nair · 9876500003 · B+</text>
+  <text x="120" y="550" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="20" font-weight="600">Ananya Patel · 9876500004 · AB+</text>
+</svg>

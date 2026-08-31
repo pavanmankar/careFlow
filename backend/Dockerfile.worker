@@ -1,0 +1,10 @@
+FROM node:20-alpine
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+WORKDIR /app
+COPY package.json ./
+COPY workers ./workers
+COPY src ./src
+COPY tsconfig.json ./
+COPY drizzle.config.ts ./
+RUN pnpm install --frozen-lockfile=false
+CMD ["npx", "tsx", "workers/src/main.ts"]

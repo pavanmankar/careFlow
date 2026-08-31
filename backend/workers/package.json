@@ -1,0 +1,8 @@
+{
+  "name": "careflow-worker",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts"
+  }
+}

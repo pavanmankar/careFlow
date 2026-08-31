@@ -1,0 +1,26 @@
+# Optional Blueprint for the shared-dev API only.
+# Secrets (DATABASE_URL, REDIS_URL, JWT_SECRET) must be set in the Render dashboard.
+# See docs/environments.md.
+
+services:
+  - type: web
+    name: careflow-api-dev
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: pnpm install
+    startCommand: pnpm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: '20'
+      - key: NODE_ENV
+        value: production
+      - key: WEB_URL
+        value: https://mycareflow-dev.vercel.app
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true

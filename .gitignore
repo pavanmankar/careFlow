@@ -1,0 +1,23 @@
+node_modules
+.turbo
+dist
+.next
+coverage
+*.log
+.env
+.env.local
+!.env.example
+.DS_Store
+Thumbs.db
+backend/dist
+frontend/.next
+.tools
+backend/test.db
+backend/test.db-journal
+# Local demo recordings and root copies (landing uses frontend/public/careflowdemo.mp4)
+careflow-stakeholder-demo*.mp4
+careflow-stakeholder-demo*.webm
+/careflowdemo.mp4
+frontend/e2e/recordings/
+frontend/e2e/e2e/recordings/
+frontend/tsconfig.tsbuildinfo

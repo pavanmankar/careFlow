@@ -1,0 +1,49 @@
+{
+  "appName": "CareFlow",
+  "login": {
+    "title": "Sign in",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "noAccount": "Create an account"
+  },
+  "register": {
+    "title": "Create your account",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "email": "Email",
+    "password": "Password",
+    "businessType": "Type of business",
+    "businessName": "Name of business",
+    "submit": "Create account",
+    "hasAccount": "Already have an account? Sign in"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "business": "Business",
+    "profile": "Profile",
+    "locations": "Locations",
+    "userManagement": "User Management",
+    "users": "Users",
+    "roles": "Roles",
+    "settings": "Settings",
+    "signOut": "Sign out"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome to {name}. Operational metrics will appear here in a later phase.",
+    "empty": "No live metrics yet. Configure your business, locations, and team to get started."
+  },
+  "users": {
+    "title": "Users",
+    "add": "Add user",
+    "activate": "Activate",
+    "deactivate": "Deactivate"
+  },
+  "roles": {
+    "title": "Roles",
+    "create": "Create role",
+    "permissions": "Permissions",
+    "save": "Save permissions"
+  }
+}

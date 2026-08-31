@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 750" role="img" aria-label="CareFlow calendar preview">
+  <rect width="1200" height="750" fill="#E6F4F1"/>
+  <rect x="60" y="60" width="1080" height="630" rx="24" fill="#ffffff"/>
+  <rect x="90" y="90" width="960" height="70" rx="16" fill="#F8F9FA"/>
+  <text x="120" y="135" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="28" font-weight="700">Calendar</text>
+  <rect x="90" y="190" width="960" height="70" rx="16" fill="#4FA0AB" opacity="0.85"/>
+  <rect x="90" y="280" width="960" height="70" rx="16" fill="#F8F9FA"/>
+  <rect x="90" y="370" width="960" height="70" rx="16" fill="#F8F9FA"/>
+  <rect x="90" y="460" width="960" height="70" rx="16" fill="#4FA0AB" opacity="0.35"/>
+  <rect x="90" y="550" width="960" height="70" rx="16" fill="#F8F9FA"/>
+  <text x="130" y="235" fill="#ffffff" font-family="Arial, sans-serif" font-size="22" font-weight="600">10 AM  Rahul Mehta · Consultation</text>
+  <text x="130" y="325" fill="#64748b" font-family="Arial, sans-serif" font-size="22">11 AM  Free</text>
+  <text x="130" y="505" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="22" font-weight="600">1 PM  Priya Sharma · Follow-up</text>
+</svg>

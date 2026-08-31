@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 750" role="img" aria-label="CareFlow dashboard preview">
+  <rect width="1200" height="750" fill="#E6F4F1"/>
+  <rect x="60" y="60" width="1080" height="630" rx="24" fill="#ffffff"/>
+  <rect x="90" y="90" width="180" height="570" rx="16" fill="#F8F9FA"/>
+  <rect x="300" y="90" width="810" height="120" rx="16" fill="#F8F9FA"/>
+  <rect x="300" y="240" width="250" height="110" rx="16" fill="#4FA0AB" opacity="0.15"/>
+  <rect x="570" y="240" width="250" height="110" rx="16" fill="#4FA0AB" opacity="0.15"/>
+  <rect x="840" y="240" width="270" height="110" rx="16" fill="#4FA0AB" opacity="0.15"/>
+  <rect x="300" y="380" width="810" height="280" rx="16" fill="#F8F9FA"/>
+  <text x="330" y="140" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="28" font-weight="700">Dashboard</text>
+  <text x="330" y="300" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="22" font-weight="700">Patients</text>
+  <text x="600" y="300" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="22" font-weight="700">Appointments</text>
+  <text x="870" y="300" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="22" font-weight="700">Revenue</text>
+</svg>

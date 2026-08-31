@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 750" role="img" aria-label="CareFlow visit chart preview">
+  <rect width="1200" height="750" fill="#E6F4F1"/>
+  <rect x="60" y="60" width="1080" height="630" rx="24" fill="#ffffff"/>
+  <rect x="90" y="90" width="960" height="80" rx="16" fill="#F8F9FA"/>
+  <text x="120" y="140" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="28" font-weight="700">Visit chart  Rahul Mehta</text>
+  <rect x="90" y="200" width="460" height="220" rx="16" fill="#F8F9FA"/>
+  <rect x="580" y="200" width="470" height="220" rx="16" fill="#F8F9FA"/>
+  <rect x="90" y="450" width="960" height="180" rx="16" fill="#F8F9FA"/>
+  <text x="120" y="250" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="22" font-weight="700">Vitals</text>
+  <text x="120" y="290" fill="#64748b" font-family="Arial, sans-serif" font-size="18">BP 120/80 · Pulse 72 · SpO2 98%</text>
+  <text x="610" y="250" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="22" font-weight="700">Medicines</text>
+  <text x="610" y="290" fill="#64748b" font-family="Arial, sans-serif" font-size="18">Paracetamol 500mg · Twice daily</text>
+  <text x="120" y="500" fill="#0b1c2c" font-family="Arial, sans-serif" font-size="22" font-weight="700">Charges</text>
+  <text x="120" y="540" fill="#64748b" font-family="Arial, sans-serif" font-size="18">Consultation fee · ¹500</text>
+</svg>
