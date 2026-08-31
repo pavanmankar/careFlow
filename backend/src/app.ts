@@ -78,7 +78,7 @@ export function createApp() {
     '/health/ready',
     wrap(async (_req, res) => {
       await pingDb();
-      const redis = new Redis(config.redisUrl, { maxRetriesPerRequest: 1, connectTimeout: 2000 });
+      const redis = new Redis(config.redisUrl, { maxRetriesPerRequest: 1, connectTimeout: 12_000 });
       try {
         const pong = await redis.ping();
         if (pong !== 'PONG') {
