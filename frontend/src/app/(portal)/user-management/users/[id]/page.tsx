@@ -20,6 +20,7 @@ import { StaffAvatar } from '@/components/staff-avatar';
 interface Role {
   id: string;
   name: string;
+  code?: string;
 }
 
 interface StaffDetail {
