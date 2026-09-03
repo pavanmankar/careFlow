@@ -2,13 +2,13 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
 import swaggerUi from 'swagger-ui-express';
 import Redis from 'ioredis';
 import { config } from '@/lib/config';
 import { mysqlDatabaseName, pingDb } from '@/db/client';
 import { contextMiddleware } from '@/lib/context';
 import { errorHandler, wrap } from '@/middleware/error-handler';
+import { createRateLimiter } from '@/lib/rate-limit-factory';
 import { authRouter } from '@/modules/auth/auth.routes';
 import { businessTypesRouter } from '@/modules/business-types/business-types.routes';
 import { tenantsRouter, businessRouter, locationsRouter } from '@/modules/business/business.routes';
@@ -21,6 +21,7 @@ import { dashboardRouter } from '@/modules/dashboard/dashboard.routes';
 import { inventoryRouter } from '@/modules/inventory/inventory.routes';
 import { metadataRouter } from '@/modules/metadata/metadata.routes';
 import { platformSettingsRouter } from '@/modules/platform-settings/platform-settings.routes';
+import { mfaRouter } from '@/modules/mfa/mfa.routes';
 import { openApiDocument } from '@/openapi';
 import { toJsonUtcMillis } from '@/lib/time';
 
@@ -44,7 +45,15 @@ export function createApp() {
   app.use(
     cors({
       origin(origin, callback) {
-        if (!origin || allowedOrigins.has(origin)) {
+        if (!origin) {
+          if (config.nodeEnv === 'production') {
+            callback(null, false);
+            return;
+          }
+          callback(null, true);
+          return;
+        }
+        if (allowedOrigins.has(origin)) {
           callback(null, true);
           return;
         }
@@ -62,16 +71,14 @@ export function createApp() {
     next();
   });
 
-  const authLimiter = rateLimit({
+  const authLimiter = createRateLimiter({
     windowMs: 60_000,
     max: 10,
-    standardHeaders: true,
     message: { code: 'RATE_LIMIT', message: 'Too many requests.' },
   });
-  const apiLimiter = rateLimit({
+  const apiLimiter = createRateLimiter({
     windowMs: 60_000,
     max: 120,
-    standardHeaders: true,
     message: { code: 'RATE_LIMIT', message: 'Too many requests.' },
   });
 
@@ -94,11 +101,15 @@ export function createApp() {
     }),
   );
 
-  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
+  if (config.nodeEnv !== 'production') {
+    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
+  }
 
   app.use('/api/v1/auth/register', authLimiter);
   app.use('/api/v1/auth/login', authLimiter);
+  app.use('/api/v1/auth/mfa', authLimiter);
   app.use('/api/v1', apiLimiter);
+  app.use('/api/v1/auth/mfa', mfaRouter);
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/business-types', businessTypesRouter);
   app.use('/api/v1/tenants', tenantsRouter);

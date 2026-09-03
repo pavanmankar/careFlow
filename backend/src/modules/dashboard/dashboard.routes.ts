@@ -9,7 +9,7 @@ import * as dashboard from './dashboard.service';
 
 export const dashboardRouter = Router();
 
-const readCharts = [requireAuth, optionalLocation, requirePermissions(PERMISSION_CODES.PATIENT_READ, PERMISSION_CODES.APPOINTMENT_READ)];
+const readCharts = [requireAuth, optionalLocation, requirePermissions(PERMISSION_CODES.DASHBOARD_READ)];
 
 dashboardRouter.get(
   '/counts',

@@ -29,7 +29,7 @@ if (-not $frontendOk -or -not $backendOk) {
     Write-Host "  cd frontend && npm run dev"
     Write-Host ""
     Write-Host "Ensure demo data is seeded:" -ForegroundColor Yellow
-    Write-Host "  cd backend && npm run db:seed && npm run db:seed:demo"
+    Write-Host "  cd backend && npm run db:migrate && npm run db:seed:demo"
     exit 1
 }
 

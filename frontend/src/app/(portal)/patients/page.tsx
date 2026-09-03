@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Eye } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, getActiveLocationId } from '@/lib/api';
 import { DataTable, TableHead, Th, Td, Tr } from '@/components/ui/data-table';
 import { DEFAULT_PAGE_SIZE, Pagination } from '@/components/ui/pagination';
 import { IconLink } from '@/components/ui/icon-button';
@@ -17,6 +17,7 @@ interface Me {
 }
 
 export default function PatientsPage() {
+  const locationId = getActiveLocationId();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const appliedSearch = useAppliedSearch(search);
@@ -33,7 +34,7 @@ export default function PatientsPage() {
     params.set('search', appliedSearch);
   }
   const patients = useQuery({
-    queryKey: ['patients', page, appliedSearch],
+    queryKey: ['patients', locationId, page, appliedSearch],
     queryFn: () =>
       api.get<{ items: ClinicPatient[]; total: number }>(`/api/v1/patients?${params.toString()}`),
   });

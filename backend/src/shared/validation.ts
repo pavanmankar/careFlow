@@ -10,7 +10,7 @@ const emailSchema = z
 
 export const paginationQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(2000).default(10),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
   sortBy: z.string().optional(),
   sortDirection: z.enum(['asc', 'desc']).default('asc'),
   search: z.string().optional(),
@@ -35,13 +35,27 @@ export const addressSchema = z.object({
   country: z.string().max(128).optional(),
 });
 
-export const registerSchema = z.object({
+export const workspaceProvisionSchema = z.object({
   firstName: z.string().min(1).max(128),
   lastName: z.string().min(1).max(128),
   email: emailSchema,
   password: z.string().min(8).max(128),
   businessTypeId: z.string().min(1),
   businessName: z.string().min(1).max(255),
+});
+
+export const registerSchema = workspaceProvisionSchema.extend({
+  termsAccepted: z.literal(true),
+  privacyAccepted: z.literal(true),
+  termsVersion: z.string().min(1).max(32),
+  privacyVersion: z.string().min(1).max(32),
+});
+
+export const acceptLegalSchema = z.object({
+  termsAccepted: z.literal(true),
+  privacyAccepted: z.literal(true),
+  termsVersion: z.string().min(1).max(32),
+  privacyVersion: z.string().min(1).max(32),
 });
 
 export const loginSchema = z.object({
@@ -297,7 +311,9 @@ export const updateInventoryItemSchema = z.object({
   maxQuantity: z.coerce.number().int().min(1).optional(),
 });
 
+export type WorkspaceProvisionInput = z.infer<typeof workspaceProvisionSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
+export type AcceptLegalInput = z.infer<typeof acceptLegalSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type UpdateMeInput = z.infer<typeof updateMeSchema>;

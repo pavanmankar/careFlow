@@ -34,8 +34,8 @@ const capabilities = [
   },
   {
     icon: ShieldCheck,
-    title: 'Permission-controlled',
-    description: 'Granular access so teams see only what they need to do their job.',
+    title: 'Security built in',
+    description: 'MFA, RBAC, tenant isolation, and audit logging designed for healthcare teams.',
   },
   {
     icon: Globe,

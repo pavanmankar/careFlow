@@ -1,3 +1,10 @@
+jest.mock('@/lib/mfa-totp', () => ({
+  createTotpSecret: jest.fn(() => 'JBSWY3DPEHPK3PXP'),
+  totpAuthUri: jest.fn(() => 'otpauth://totp/CareFlow:test?secret=JBSWY3DPEHPK3PXP'),
+  verifyTotpCode: jest.fn(() => true),
+  currentTotpToken: jest.fn(() => '123456'),
+}));
+
 import request from 'supertest';
 import { createApp } from '../src/app';
 

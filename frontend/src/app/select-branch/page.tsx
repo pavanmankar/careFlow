@@ -3,18 +3,23 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Building2, Loader2, MapPin } from 'lucide-react';
-import { api, ApiClientError, getAccessToken, setActiveLocationId } from '@/lib/api';
+import { api, ApiClientError, getAccessToken, setActiveLocationId, setApiBusy } from '@/lib/api';
 import { ClinicLogo } from '@/components/clinic-logo';
 import type { BranchLocation, MeWithLocations } from '@/lib/location';
 import { resolveBranchAfterAuth } from '@/lib/location';
+import { resolveDefaultPortalRoute } from '@/lib/portal-routes';
+import { needsLegalAcceptance } from '@/lib/legal';
 
 export default function SelectBranchPage() {
   const router = useRouter();
   const [locations, setLocations] = useState<BranchLocation[]>([]);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [roles, setRoles] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setApiBusy(false);
     if (!getAccessToken()) {
       router.replace('/login');
       return;
@@ -24,6 +29,10 @@ export default function SelectBranchPage() {
       try {
         const me = await api.get<MeWithLocations>('/api/v1/auth/me');
         if (cancelled) {
+          return;
+        }
+        if (needsLegalAcceptance(me.legal)) {
+          router.replace('/accept-legal');
           return;
         }
         if (me.roles?.includes('SUPER_ADMIN')) {
@@ -36,6 +45,8 @@ export default function SelectBranchPage() {
           return;
         }
         setLocations(list);
+        setPermissions(me.permissions ?? []);
+        setRoles(me.roles ?? []);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof ApiClientError ? err.message : 'Unable to load branches.');
@@ -54,7 +65,7 @@ export default function SelectBranchPage() {
 
   function selectBranch(id: string) {
     setActiveLocationId(id);
-    router.replace('/dashboard');
+    router.replace(resolveDefaultPortalRoute({ roles, permissions }));
   }
 
   return (

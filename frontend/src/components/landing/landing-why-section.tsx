@@ -44,8 +44,8 @@ const launchBenefits = [
   },
   {
     icon: Shield,
-    title: 'Role-based access',
-    description: 'Control who can view, book, edit charts, or manage staff with granular permissions.',
+    title: 'Security & access',
+    description: 'Require MFA, assign roles, reset authenticators, and keep every branch isolated.',
   },
   {
     icon: CalendarDays,

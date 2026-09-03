@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1788253051582,
+      "tag": "0000_illegal_logan",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1788253200000,
+      "tag": "0001_seed_masters",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1788253300000,
+      "tag": "0002_seed_public_demo",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1788262793935,
+      "tag": "0003_user_consent_records",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1788273600000,
+      "tag": "0004_dashboard_permission",
+      "breakpoints": true
+    }
+  ]
+}

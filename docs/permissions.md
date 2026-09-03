@@ -4,6 +4,7 @@ Permissions are API actions, not a single module switch.
 
 ## Catalog (Phase 1)
 
+Dashboard: `DASHBOARD_READ`  
 Staff: `STAFF_READ`, `STAFF_CREATE`, `STAFF_UPDATE`, `STAFF_ACTIVATE`  
 Roles: `ROLE_READ`, `ROLE_CREATE`, `ROLE_UPDATE`, `ROLE_DELETE`, `ROLE_ASSIGN_PERMISSIONS`, `USER_ASSIGN_ROLE`  
 Business: `BUSINESS_READ`, `BUSINESS_UPDATE`  
@@ -16,6 +17,7 @@ Owner / Admin / Manager with `ROLE_ASSIGN_PERMISSIONS` open **User Management â†
 Guardrails:
 
 - Owner role cannot be edited or have permissions changed.
+- Doctor role permissions are edited from **Doctors â†’ Doctor permissions** (per branch) via `GET/PUT /api/v1/roles/system/doctor`; applies to all doctors in that branch. You can also use `PUT /api/v1/roles/:id/permissions` with the doctor role id.
 - Last Owner cannot be deactivated.
 - Manager cannot grant `ROLE_ASSIGN_PERMISSIONS` or `ROLE_DELETE`.
 - Custom roles belong to one tenant.

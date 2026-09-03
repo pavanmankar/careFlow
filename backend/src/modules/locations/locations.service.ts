@@ -3,9 +3,10 @@ import { and, asc, count, desc, eq, isNull, or } from 'drizzle-orm';
 import { ERROR_CODES } from '@/shared/types';
 import { CreateLocationInput } from '@/shared/validation';
 import { createStamps, db, likeContains, omitUndefined, updateStamp } from '@/db/client';
-import { businesses, locations } from '@/db/schema';
+import { businesses, doctorProfiles, locations, patients } from '@/db/schema';
 import { AppError } from '@/lib/errors';
 import { getRequestContext } from '@/lib/context';
+import { bindTenantToNewLocation } from '@/lib/location-bind';
 
 function requireTenant() {
   const tenantId = getRequestContext()?.tenantId;
@@ -66,6 +67,12 @@ export async function createLocation(input: CreateLocationInput, userId: string)
   if (duplicate) {
     throw new AppError(ERROR_CODES.CONFLICT, 'A location with this code already exists.', 409);
   }
+  const priorCount = await db
+    .select({ total: count() })
+    .from(locations)
+    .where(and(eq(locations.tenantId, tenantId), isNull(locations.deletedAt)));
+  const isFirstLocation = Number(priorCount[0]?.total ?? 0) === 0;
+
   const id = ULID.random();
   await db.insert(locations).values({
     id,
@@ -84,6 +91,20 @@ export async function createLocation(input: CreateLocationInput, userId: string)
     updatedBy: userId,
     ...createStamps(),
   });
+
+  await bindTenantToNewLocation(tenantId, id);
+
+  if (isFirstLocation) {
+    await db
+      .update(patients)
+      .set({ locationId: id })
+      .where(and(eq(patients.tenantId, tenantId), isNull(patients.locationId), isNull(patients.deletedAt)));
+    await db
+      .update(doctorProfiles)
+      .set({ locationId: id })
+      .where(and(eq(doctorProfiles.tenantId, tenantId), isNull(doctorProfiles.locationId)));
+  }
+
   return requireLocation(id);
 }
 

@@ -21,7 +21,6 @@ This guide explains how to record the automated stakeholder demo video using Pla
    cp .env.example .env   # if not already done
    npm install
    npm run db:migrate
-   npm run db:seed
    npm run db:seed:demo
    npm run dev
    ```
@@ -99,7 +98,7 @@ Or use CapCut, DaVinci Resolve, or iMovie to align the script timestamps with th
 
 | Problem | Fix |
 |---------|-----|
-| Login fails | Re-run `npm run db:seed` and `npm run db:seed:demo` in backend |
+| Login fails | Re-run `npm run db:migrate` and `npm run db:seed:demo` in backend |
 | `ECONNREFUSED` on :3000 or :3001 | Start frontend and backend dev servers |
 | Test times out | Increase `timeout` on the `demo` project in `playwright.config.ts` |
 | Empty patient/appointment tables | Ensure `db:seed:demo` completed successfully |

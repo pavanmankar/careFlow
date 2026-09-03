@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import {
   Building2,
   CalendarDays,
@@ -28,6 +29,10 @@ import {
 } from '@/components/subscription-required';
 import { cn } from '@/lib/cn';
 import { isDemoViewer } from '@/lib/demo';
+import { PRIVACY_EMAIL } from '@/content/legal/legal-meta';
+import { LegalDocumentLink } from '@/components/legal/legal-document-link';
+import { resolveDefaultPortalRoute } from '@/lib/portal-routes';
+import { DemoDateProvider } from '@/components/demo-date-context';
 
 interface Me {
   user: { firstName: string; lastName: string };
@@ -127,7 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const can = (code: string) => permissions.includes(code);
   const demoMode = isDemoViewer(permissions, roles);
   const isSuperAdmin = me.data?.roles.includes('SUPER_ADMIN') ?? false;
-  const appointmentsAllowed = me.data?.entitlements?.appointments.allowed ?? true;
+  const appointmentsAllowed = demoMode || (me.data?.entitlements?.appointments.allowed ?? true);
   const showUserManagement = !isSuperAdmin && (can('STAFF_READ') || can('ROLE_READ'));
   const [userMgmtOpen, setUserMgmtOpen] = useState(pathname.startsWith('/user-management'));
   const [navOpen, setNavOpen] = useState(false);
@@ -154,13 +159,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   function closeSubscriptionModal() {
     setSubscriptionOpen(false);
-    if (blockedModulePath) {
-      navigate('/dashboard');
+    if (blockedModulePath && me.data) {
+      navigate(resolveDefaultPortalRoute(me.data));
     }
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-canvas">
+    <DemoDateProvider isDemo={demoMode}>
+      <div className="flex min-h-screen flex-col bg-canvas">
       <SessionTimeout />
       {demoMode ? (
         <div className="border-b border-brand-200 bg-brand-50 px-4 py-2 text-center text-sm text-brand-900 md:px-6">
@@ -205,7 +211,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
         >
           <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-            <NavLink href="/dashboard" label="Dashboard" icon={LayoutDashboard} pathname={pathname} />
+            {(isSuperAdmin || can('DASHBOARD_READ')) && (
+              <NavLink href="/dashboard" label="Dashboard" icon={LayoutDashboard} pathname={pathname} />
+            )}
             {isSuperAdmin && <NavLink href="/tenants" label="Clinics" icon={Building2} pathname={pathname} />}
             {isSuperAdmin && <NavLink href="/settings" label="Settings" icon={Settings} pathname={pathname} />}
             {!isSuperAdmin && (
@@ -275,12 +283,19 @@ export function AppShell({ children }: { children: ReactNode }) {
       <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-white px-4 py-3 text-xs text-slate-500 md:px-6">
         <span>Copyright © 2026 CareFlow</span>
         <nav className="flex gap-4">
-          <span>Privacy</span>
-          <span>Terms</span>
-          <span>Contact</span>
+          <LegalDocumentLink document="privacy" className="text-slate-500 hover:text-navy-900">
+            Privacy
+          </LegalDocumentLink>
+          <LegalDocumentLink document="terms" className="text-slate-500 hover:text-navy-900">
+            Terms
+          </LegalDocumentLink>
+          <a href={`mailto:${PRIVACY_EMAIL}`} className="hover:text-navy-900">
+            Contact
+          </a>
         </nav>
       </footer>
       <SubscriptionRequiredModal open={subscriptionOpen} onClose={closeSubscriptionModal} />
-    </div>
+      </div>
+    </DemoDateProvider>
   );
 }

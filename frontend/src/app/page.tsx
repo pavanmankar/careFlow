@@ -6,6 +6,7 @@ import { LandingHeader } from '@/components/landing/landing-header';
 import { LandingHero } from '@/components/landing/landing-hero';
 import { LandingHowItWorks } from '@/components/landing/landing-how-it-works';
 import { LandingScreenshots } from '@/components/landing/landing-screenshots';
+import { LandingSecuritySection } from '@/components/landing/landing-security-section';
 import { LandingWhySection } from '@/components/landing/landing-why-section';
 import { LandingTrustBar } from '@/components/landing/landing-trust-bar';
 import { LandingVideoSection } from '@/components/landing/landing-video-section';
@@ -19,6 +20,7 @@ export default function HomePage() {
         <LandingTrustBar />
         <LandingVideoSection />
         <LandingFeatures />
+        <LandingSecuritySection />
         <LandingScreenshots />
         <LandingHowItWorks />
         <LandingWhySection />

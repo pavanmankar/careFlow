@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { api, ApiClientError } from '@/lib/api';
+import { api, ApiClientError, getActiveLocationId } from '@/lib/api';
 import { formatUtcMillis } from '@/lib/datetime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,8 +15,9 @@ import { AddressFields } from '@/components/address-fields';
 import { IconButton } from '@/components/ui/icon-button';
 import { StaffAvatar } from '@/components/staff-avatar';
 import { ListSearch, useAppliedSearch } from '@/components/list-search';
-import { Plus, Pencil, UserCheck, UserX } from 'lucide-react';
+import { Plus, Pencil, UserCheck, UserX, KeyRound } from 'lucide-react';
 import Link from 'next/link';
+import { IconLink } from '@/components/ui/icon-button';
 import { usePortalNavigate } from '@/components/portal-navigation';
 import { useEffect, useState } from 'react';
 
@@ -62,6 +63,7 @@ function addressPayload(values: CreateDoctorForm) {
 }
 
 export default function DoctorsPage() {
+  const locationId = getActiveLocationId();
   const navigate = usePortalNavigate();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -82,7 +84,7 @@ export default function DoctorsPage() {
     params.set('search', appliedSearch);
   }
   const doctors = useQuery({
-    queryKey: ['doctors', 'managed', page, appliedSearch],
+    queryKey: ['doctors', locationId, 'managed', page, appliedSearch],
     queryFn: () =>
       api.get<{ items: DoctorRow[]; total: number }>(`/api/v1/doctors?${params.toString()}`),
   });
@@ -145,12 +147,17 @@ export default function DoctorsPage() {
           onChange={setSearch}
           placeholder="Search doctor"
         />
-        {can('DOCTOR_CREATE') ? (
-          <Button onClick={() => setOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add doctor
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {can('ROLE_ASSIGN_PERMISSIONS') && (
+            <IconLink href="/doctors/permissions" icon={KeyRound} label="Doctor permissions" />
+          )}
+          {can('DOCTOR_CREATE') && (
+            <Button onClick={() => setOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add doctor
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && !open && <p className="mb-4 text-sm text-red-600">{error}</p>}

@@ -3,6 +3,7 @@ import { db, updateStamp } from '@/db/client';
 import { platformSettings, tenants } from '@/db/schema';
 import { AppError } from '@/lib/errors';
 import { ULID } from '@/lib/id';
+import { bypassesSubscriptionCheck } from '@/lib/public-demo';
 import { utcNowMs } from '@/lib/time';
 import { ERROR_CODES } from '@/shared/types';
 
@@ -39,7 +40,10 @@ export function evaluateAppointmentsEntitlement(input: {
   return { allowed: true, subcriptionEnabled: true, subcriptionUntil, reason: null };
 }
 
-export async function getAppointmentsEntitlement(tenantId: string | null | undefined): Promise<AppointmentsEntitlement> {
+export async function getAppointmentsEntitlement(
+  tenantId: string | null | undefined,
+  roles: string[] = [],
+): Promise<AppointmentsEntitlement> {
   if (!tenantId) {
     return {
       allowed: false,
@@ -57,11 +61,22 @@ export async function getAppointmentsEntitlement(tenantId: string | null | undef
       reason: null,
     };
   }
+  if (bypassesSubscriptionCheck(tenantId, roles)) {
+    return {
+      allowed: true,
+      subcriptionEnabled: Boolean(tenant.subcriptionEnabled),
+      subcriptionUntil: asNumber(tenant.subcriptionUntil),
+      reason: null,
+    };
+  }
   return evaluateAppointmentsEntitlement(tenant);
 }
 
-export async function assertSubcriptionAccess(tenantId: string) {
-  const entitlement = await getAppointmentsEntitlement(tenantId);
+export async function assertSubcriptionAccess(tenantId: string, roles: string[] = []) {
+  if (bypassesSubscriptionCheck(tenantId, roles)) {
+    return;
+  }
+  const entitlement = await getAppointmentsEntitlement(tenantId, roles);
   if (entitlement.allowed) {
     return;
   }

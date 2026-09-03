@@ -73,7 +73,7 @@ export async function getVisit(id: string, tenantId: string) {
     db.query.appointmentCharges.findMany({
       where: and(eq(appointmentCharges.appointmentId, id), eq(appointmentCharges.tenantId, tenantId), isNull(appointmentCharges.deletedAt)),
     }),
-    loadRecentVisits(tenantId, row.patientId, row.id),
+    loadRecentVisits(tenantId, row.patientId, row.id, locationId),
   ]);
 
   return {
@@ -319,13 +319,14 @@ export async function setVisitStatus(
   return getVisit(id, tenantId);
 }
 
-async function loadRecentVisits(tenantId: string, patientId: string, currentId: string) {
+async function loadRecentVisits(tenantId: string, patientId: string, currentId: string, locationId: string | null) {
   const rows = await db.query.appointments.findMany({
     where: and(
       eq(appointments.tenantId, tenantId),
       eq(appointments.patientId, patientId),
       ne(appointments.id, currentId),
       isNull(appointments.deletedAt),
+      ...(locationId ? [eq(appointments.locationId, locationId)] : []),
     ),
     with: {
       doctor: true,

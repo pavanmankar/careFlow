@@ -46,6 +46,9 @@ export function BranchSwitcher() {
     void qc.invalidateQueries({ queryKey: ['dashboard'] });
     void qc.invalidateQueries({ queryKey: ['inventory'] });
     void qc.invalidateQueries({ queryKey: ['doctors'] });
+    void qc.invalidateQueries({ queryKey: ['patients'] });
+    void qc.invalidateQueries({ queryKey: ['users'] });
+    void qc.invalidateQueries({ queryKey: ['roles'] });
   }
 
   if (locations.length === 0) {

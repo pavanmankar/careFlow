@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { api, ApiClientError } from '@/lib/api';
+import { api, ApiClientError, getActiveLocationId } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/date-range-calendar';
 import { Input } from '@/components/ui/input';
@@ -56,6 +56,7 @@ export function BookAppointmentModal({
   prefill?: { date?: string; startsAt?: number; doctorUserId?: string };
 }) {
   const qc = useQueryClient();
+  const locationId = getActiveLocationId();
   const form = useForm<BookForm>({
     defaultValues: {
       name: '',
@@ -89,12 +90,12 @@ export function BookAppointmentModal({
   const typeItems = types.data?.items?.length ? types.data.items : APPOINTMENT_TYPES.map((name) => ({ code: name, name }));
 
   const doctors = useQuery({
-    queryKey: ['doctors'],
+    queryKey: ['doctors', locationId],
     queryFn: () => api.get<{ items: ClinicDoctor[] }>('/api/v1/doctors'),
     enabled: open,
   });
   const slots = useQuery({
-    queryKey: ['doctor-slots', doctorUserId, date],
+    queryKey: ['doctor-slots', locationId, doctorUserId, date],
     queryFn: () => api.get<{ items: SlotOption[] }>(`/api/v1/doctors/${doctorUserId}/slots?date=${date}`),
     enabled: open && Boolean(doctorUserId && date),
   });

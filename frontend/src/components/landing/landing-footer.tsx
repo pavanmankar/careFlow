@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ClinicLogo } from '@/components/clinic-logo';
 import { LandingShell } from '@/components/landing/landing-shell';
+import { LandingLegalLinks } from '@/components/landing/landing-legal-links';
 
 const columns = [
   {
@@ -8,6 +9,7 @@ const columns = [
     links: [
       { href: '#video', label: 'Demo video' },
       { href: '#features', label: 'Features' },
+      { href: '#security', label: 'Security' },
       { href: '#screenshots', label: 'Screenshots' },
       { href: '#demo', label: 'Live demo' },
     ],
@@ -26,7 +28,7 @@ export function LandingFooter() {
   return (
     <footer className="w-full border-t border-slate-200 bg-navy-900 text-slate-300">
       <LandingShell className="py-12 sm:py-14">
-        <div className="grid gap-10 lg:grid-cols-[1.2fr_0.8fr_0.8fr]">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <ClinicLogo inverted />
             <p className="mt-4 max-w-sm text-sm leading-7 text-slate-400">
@@ -40,11 +42,7 @@ export function LandingFooter() {
               <ul className="mt-4 space-y-2.5">
                 {column.links.map((link) => (
                   <li key={link.label}>
-                    <Link
-                      href={link.href}
-                      {...(link.href.startsWith('/') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                      className="text-sm text-slate-400 transition hover:text-brand-200"
-                    >
+                    <Link href={link.href} className="text-sm text-slate-400 transition hover:text-brand-200">
                       {link.label}
                     </Link>
                   </li>
@@ -52,6 +50,10 @@ export function LandingFooter() {
               </ul>
             </div>
           ))}
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-white">Legal</h3>
+            <LandingLegalLinks />
+          </div>
         </div>
         <div className="mt-10 flex flex-col gap-3 border-t border-white/10 pt-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <p>Copyright © 2026 CareFlow. All rights reserved.</p>

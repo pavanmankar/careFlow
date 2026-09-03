@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { api, ApiClientError } from '@/lib/api';
+import { api, ApiClientError, getActiveLocationId } from '@/lib/api';
 import { formatUtcMillis } from '@/lib/datetime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +41,7 @@ function roleCodeFromName(name: string) {
 }
 
 export default function RolesPage() {
+  const locationId = getActiveLocationId();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [deleteRole, setDeleteRole] = useState<RoleRow | null>(null);
@@ -48,7 +49,7 @@ export default function RolesPage() {
   const [page, setPage] = useState(1);
   const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<Me>('/api/v1/auth/me') });
   const roles = useQuery({
-    queryKey: ['roles', page],
+    queryKey: ['roles', locationId, page],
     queryFn: () =>
       api.get<{ items: RoleRow[]; total: number }>(`/api/v1/roles?page=${page}&pageSize=${DEFAULT_PAGE_SIZE}`),
   });

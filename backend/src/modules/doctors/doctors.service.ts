@@ -7,11 +7,13 @@ import { CreateDoctorInput, UpdateDoctorInput } from '@/shared/validation';
 import { db, liveRoleIds, omitUndefined, updateStamp } from '@/db/client';
 import { appointments, businesses, doctorProfiles, refreshTokens, roles, userRoles, users } from '@/db/schema';
 import { AppError } from '@/lib/errors';
-import { getRequestContext } from '@/lib/context';
+import { getLocationId, getRequestContext } from '@/lib/context';
 import { clinicHoursFromSettings, hourSlotsForDate } from '@/lib/clinic-hours';
 import { ensureDoctorProfile } from '@/lib/doctor-profile';
 import { AuthUser } from '@/modules/auth/auth.types';
-import { assertLocationForAppointments } from '@/lib/location-scope';
+import { assertLocationForDoctors, requireActiveLocationId } from '@/lib/location-scope';
+import { findRoleByCode } from '@/lib/location-membership';
+import { resetUserMfa as clearUserMfa } from '@/modules/mfa/mfa.service';
 
 function requireTenant() {
   const tenantId = getRequestContext()?.tenantId;
@@ -33,7 +35,7 @@ async function clinicContext() {
   return { tenantId, timezone: business.timezone, ...hours };
 }
 
-async function doctorMemberships(tenantId: string) {
+async function doctorMemberships(tenantId: string, locationId: string) {
   const rows = await db
     .select({
       user: users,
@@ -42,8 +44,8 @@ async function doctorMemberships(tenantId: string) {
     .from(userRoles)
     .innerJoin(roles, and(eq(userRoles.roleId, roles.id), eq(roles.code, ROLE_CODES.DOCTOR), isNull(roles.deletedAt)))
     .innerJoin(users, and(eq(userRoles.userId, users.id), isNull(users.deletedAt)))
-    .leftJoin(doctorProfiles, eq(doctorProfiles.userId, users.id))
-    .where(eq(userRoles.tenantId, tenantId));
+    .innerJoin(doctorProfiles, and(eq(doctorProfiles.userId, users.id), eq(doctorProfiles.locationId, locationId)))
+    .where(and(eq(userRoles.tenantId, tenantId), eq(userRoles.locationId, locationId)));
   const seen = new Set<string>();
   return rows.filter((row) => {
     if (seen.has(row.user.id)) {
@@ -56,7 +58,8 @@ async function doctorMemberships(tenantId: string) {
 
 export async function listDoctors() {
   const { tenantId, timezone, openTime, closeTime } = await clinicContext();
-  const items = (await doctorMemberships(tenantId))
+  const locationId = requireActiveLocationId();
+  const items = (await doctorMemberships(tenantId, locationId))
     .filter((row) => row.user.status === USER_STATUS.ACTIVE)
     .map((row) => serializeDoctor({ ...row.user, doctorProfile: row.specialty != null ? { specialty: row.specialty } : null }))
     .sort((a, b) => a.firstName.localeCompare(b.firstName));
@@ -68,11 +71,12 @@ export async function listDoctors() {
 
 export async function listManagedDoctors(query: { page?: number; pageSize?: number; search?: string } = {}) {
   const tenantId = requireTenant();
+  const locationId = requireActiveLocationId();
   const actorId = getRequestContext()?.userId;
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? 10;
   const term = query.search?.trim().toLowerCase();
-  const items = (await doctorMemberships(tenantId))
+  const items = (await doctorMemberships(tenantId, locationId))
     .filter((row) => row.user.id !== actorId)
     .filter((row) => {
       if (!term) {
@@ -102,16 +106,15 @@ export async function getDoctor(userId: string) {
 
 export async function createDoctor(input: CreateDoctorInput, actor: AuthUser) {
   const tenantId = requireTenant();
+  const locationId = await assertLocationForDoctors();
   const email = input.email.toLowerCase();
   const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
   if (existing) {
     throw new AppError(ERROR_CODES.DUPLICATE_EMAIL, 'An account with this email already exists.', 409);
   }
-  const doctorRole = await db.query.roles.findFirst({
-    where: and(eq(roles.tenantId, tenantId), eq(roles.code, ROLE_CODES.DOCTOR), isNull(roles.deletedAt)),
-  });
+  const doctorRole = await findRoleByCode(tenantId, ROLE_CODES.DOCTOR, locationId);
   if (!doctorRole) {
-    throw new AppError(ERROR_CODES.ROLE_NOT_FOUND, 'The Doctor role was not found.', 404);
+    throw new AppError(ERROR_CODES.ROLE_NOT_FOUND, 'The Doctor role was not found for this branch.', 404);
   }
   const now = BigInt(utcNowMs());
   const userId = ULID.random();
@@ -131,12 +134,12 @@ export async function createDoctor(input: CreateDoctorInput, actor: AuthUser) {
     createdAt: now,
     updatedAt: now,
   });
-  await db.insert(userRoles).values({ userId, roleId: doctorRole.id, tenantId, createdAt: now });
-  await ensureDoctorProfile(userId, tenantId);
+  await db.insert(userRoles).values({ userId, roleId: doctorRole.id, tenantId, locationId, createdAt: now });
+  await ensureDoctorProfile(userId, tenantId, locationId);
   if (input.specialty?.trim()) {
     await db
       .update(doctorProfiles)
-      .set({ specialty: input.specialty.trim(), ...updateStamp() })
+      .set({ specialty: input.specialty.trim(), locationId, ...updateStamp() })
       .where(eq(doctorProfiles.userId, userId));
   }
   return getDoctor(userId);
@@ -172,7 +175,8 @@ export async function updateDoctor(userId: string, input: UpdateDoctorInput, act
       .where(eq(users.id, doctor.id));
   }
   if (specialty !== undefined) {
-    await ensureDoctorProfile(doctor.id, tenantId);
+    const locationId = getLocationId() ?? doctor.doctorProfile?.locationId ?? null;
+    await ensureDoctorProfile(doctor.id, tenantId, locationId);
     await db
       .update(doctorProfiles)
       .set({ specialty: specialty.trim(), ...updateStamp() })
@@ -206,8 +210,32 @@ export async function setDoctorActive(userId: string, active: boolean, actor: Au
   return getDoctor(doctor.id);
 }
 
+function assertTenantOwner(actor: AuthUser) {
+  if (!actor.roles.includes(ROLE_CODES.TENANT_OWNER)) {
+    throw new AppError(ERROR_CODES.FORBIDDEN, 'Only the clinic owner can perform this action.', 403);
+  }
+}
+
+export async function resetDoctorMfa(
+  userId: string,
+  actor: AuthUser,
+  meta: { ip?: string; userAgent?: string },
+) {
+  assertTenantOwner(actor);
+  if (userId === actor.userId) {
+    throw new AppError(ERROR_CODES.FORBIDDEN, 'You cannot reset your own two-factor authentication.', 403);
+  }
+  await requireDoctorRecord(userId);
+  return clearUserMfa(userId, {
+    actorId: actor.userId,
+    tenantId: actor.tenantId,
+    ip: meta.ip,
+    userAgent: meta.userAgent,
+  });
+}
+
 export async function listDoctorSlots(userId: string, date: string, excludeAppointmentId?: string) {
-  await assertLocationForAppointments();
+  const locationId = await assertLocationForDoctors();
   const doctor = await requireActiveDoctor(userId);
   const { tenantId, timezone, openTime, closeTime } = await clinicContext();
   const slots = hourSlotsForDate(date, timezone, openTime, closeTime);
@@ -220,6 +248,7 @@ export async function listDoctorSlots(userId: string, date: string, excludeAppoi
     .where(
       and(
         eq(appointments.tenantId, tenantId),
+        eq(appointments.locationId, locationId),
         eq(appointments.doctorUserId, doctor.id),
         isNull(appointments.deletedAt),
         notInArray(appointments.status, ['Cancelled', 'Expired']),
@@ -251,13 +280,21 @@ async function requireActiveDoctor(userId: string) {
 
 async function requireDoctorRecord(userId: string) {
   const tenantId = requireTenant();
+  const locationId = requireActiveLocationId();
   const user = await db.query.users.findFirst({
     where: and(eq(users.id, userId), eq(users.tenantId, tenantId), isNull(users.deletedAt)),
     with: { doctorProfile: true, userRoles: { with: { role: true } } },
   });
   const live = user ? await liveRoleIds(user.userRoles.map((row) => row.roleId)) : new Set<string>();
   const isDoctor = Boolean(
-    user && user.userRoles.some((row) => live.has(row.roleId) && row.role.code === ROLE_CODES.DOCTOR),
+    user &&
+      user.userRoles.some(
+        (row) =>
+          live.has(row.roleId) &&
+          row.role.code === ROLE_CODES.DOCTOR &&
+          row.locationId === locationId,
+      ) &&
+      user.doctorProfile?.locationId === locationId,
   );
   if (!user || !isDoctor) {
     throw new AppError(ERROR_CODES.DOCTOR_NOT_FOUND, 'The requested resource was not found.', 404);
@@ -305,6 +342,7 @@ function serializeDoctor(user: {
   timezone?: string | null;
   createdAt?: bigint;
   address?: unknown;
+  mfaEnabled?: boolean;
   doctorProfile: { specialty: string } | null;
 }) {
   return {
@@ -319,5 +357,6 @@ function serializeDoctor(user: {
     timezone: user.timezone ?? null,
     createdAt: user.createdAt ?? null,
     address: user.address ?? null,
+    mfaEnabled: Boolean(user.mfaEnabled),
   };
 }

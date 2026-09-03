@@ -5,8 +5,6 @@ import { ERROR_CODES } from '@/shared/types';
 import { createStamps, db, updateStamp } from '@/db/client';
 import { metadata } from '@/db/schema';
 import {
-  APPOINTMENT_TYPE_ITEMS,
-  BUSINESS_TYPE_ITEMS,
   METADATA_KEYS,
   asMetadataItems,
   toPublicItem,
@@ -62,11 +60,6 @@ export async function upsertMetadata(key: MetadataKey, items: MetadataItem[]) {
     value: items,
     ...createStamps(),
   });
-}
-
-export async function seedMetadataMasters() {
-  await upsertMetadata(METADATA_KEYS.BUSINESS_TYPE, BUSINESS_TYPE_ITEMS);
-  await upsertMetadata(METADATA_KEYS.APPOINTMENT_TYPE, APPOINTMENT_TYPE_ITEMS);
 }
 
 export function serializeMetadataItem(item: MetadataItem) {

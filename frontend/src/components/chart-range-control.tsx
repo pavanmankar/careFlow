@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Select } from '@/components/ui/select';
 import { DateRangeCalendar } from '@/components/date-range-calendar';
+import { useDemoDates } from '@/components/demo-date-context';
 
 export const CHART_PERIODS = [
   { value: 'current', label: 'Current month' },
@@ -25,16 +26,22 @@ export function chartQueryString(period: ChartPeriod, from: string | null, to: s
 }
 
 export function useChartRange() {
+  const { chartRange, rangeLocked } = useDemoDates();
   const [period, setPeriod] = useState<ChartPeriod>('current');
   const [from, setFrom] = useState<string | null>(null);
   const [to, setTo] = useState<string | null>(null);
+  const effectivePeriod = rangeLocked && chartRange ? chartRange.period : period;
+  const effectiveFrom = rangeLocked && chartRange ? chartRange.from : from;
+  const effectiveTo = rangeLocked && chartRange ? chartRange.to : to;
+
   return {
-    ready: period !== 'custom' || Boolean(from && to),
-    query: chartQueryString(period, from, to),
+    ready: effectivePeriod !== 'custom' || Boolean(effectiveFrom && effectiveTo),
+    query: chartQueryString(effectivePeriod, effectiveFrom, effectiveTo),
     controlProps: {
-      period,
-      from,
-      to,
+      period: effectivePeriod,
+      from: effectiveFrom,
+      to: effectiveTo,
+      locked: rangeLocked,
       onPeriodChange: setPeriod,
       onCustomChange: (next: { from: string | null; to: string | null }) => {
         setFrom(next.from);
@@ -48,15 +55,21 @@ export function ChartRangeControl({
   period,
   from,
   to,
+  locked = false,
   onPeriodChange,
   onCustomChange,
 }: {
   period: ChartPeriod;
   from: string | null;
   to: string | null;
+  locked?: boolean;
   onPeriodChange: (period: ChartPeriod) => void;
   onCustomChange: (next: { from: string | null; to: string | null }) => void;
 }) {
+  if (locked) {
+    return null;
+  }
+
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       <Select

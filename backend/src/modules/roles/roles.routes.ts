@@ -3,15 +3,38 @@ import { createRoleSchema, paginationQuerySchema, replacePermissionsSchema, upda
 import { parseDto } from '@/lib/http';
 import { wrap } from '@/middleware/error-handler';
 import { requireAuth, requirePermissions } from '@/middleware/auth';
+import { optionalLocation } from '@/middleware/location';
 import { PERMISSION_CODES } from '@/shared/types';
+import { auditFromReq } from '@/lib/audit';
 import * as roles from './roles.service';
 
 export const rolesRouter = Router();
 export const permissionsRouter = Router();
 
+rolesRouter.use(requireAuth, optionalLocation);
+
+rolesRouter.get(
+  '/system/doctor',
+  requirePermissions(PERMISSION_CODES.ROLE_ASSIGN_PERMISSIONS),
+  wrap(async (_req, res) => {
+    const data = await roles.getDoctorRolePermissions();
+    res.json({ data });
+  }),
+);
+
+rolesRouter.put(
+  '/system/doctor/permissions',
+  requirePermissions(PERMISSION_CODES.ROLE_ASSIGN_PERMISSIONS),
+  wrap(async (req, res) => {
+    const input = parseDto(replacePermissionsSchema, req.body);
+    const data = await roles.replaceDoctorRolePermissions(input.permissionCodes, req.authUser!);
+    await auditFromReq(req, { action: 'DOCTOR_ROLE_PERMISSIONS_UPDATE', resource: 'role', resourceId: data.id });
+    res.json({ data });
+  }),
+);
+
 rolesRouter.get(
   '/',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.ROLE_READ),
   wrap(async (req, res) => {
     const data =
@@ -24,7 +47,6 @@ rolesRouter.get(
 
 rolesRouter.get(
   '/:id',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.ROLE_READ),
   wrap(async (req, res) => {
     const data = await roles.getRole(req.params.id);
@@ -34,7 +56,6 @@ rolesRouter.get(
 
 rolesRouter.post(
   '/',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.ROLE_CREATE),
   wrap(async (req, res) => {
     const data = await roles.createRole(parseDto(createRoleSchema, req.body), req.authUser!);
@@ -44,7 +65,6 @@ rolesRouter.post(
 
 rolesRouter.put(
   '/:id',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.ROLE_UPDATE),
   wrap(async (req, res) => {
     const data = await roles.updateRole(req.params.id, parseDto(updateRoleSchema, req.body), req.authUser!);
@@ -54,7 +74,6 @@ rolesRouter.put(
 
 rolesRouter.delete(
   '/:id',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.ROLE_DELETE),
   wrap(async (req, res) => {
     const data = await roles.removeRole(req.params.id, req.authUser!);
@@ -64,7 +83,6 @@ rolesRouter.delete(
 
 rolesRouter.put(
   '/:id/permissions',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.ROLE_ASSIGN_PERMISSIONS),
   wrap(async (req, res) => {
     const data = await roles.replaceRolePermissions(

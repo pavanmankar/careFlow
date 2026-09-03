@@ -2,7 +2,7 @@
 
 import { usePortalId } from '@/components/portal-navigation';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, getActiveLocationId } from '@/lib/api';
 import { BackLink } from '@/components/ui/icon-button';
 import { PortalLink } from '@/components/portal-navigation';
 import { Card } from '@/components/ui/card';
@@ -36,7 +36,7 @@ export default function PatientDetailPage() {
   const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<Me>('/api/v1/auth/me') });
   const timezone = me.data?.business?.timezone ?? 'Asia/Kolkata';
   const patient = useQuery({
-    queryKey: ['patients', params.id],
+    queryKey: ['patients', getActiveLocationId(), params.id],
     queryFn: () => api.get<PatientDetail>(`/api/v1/patients/${params.id}`),
     enabled: Boolean(params.id),
   });

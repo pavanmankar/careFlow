@@ -14,6 +14,8 @@ import { BookAppointmentModal } from '@/components/book-appointment-modal';
 import { RescheduleAppointmentModal } from '@/components/reschedule-appointment-modal';
 import { PortalLink } from '@/components/portal-navigation';
 import { LocationRequiredBanner } from '@/components/location-required-banner';
+import { useDemoDates } from '@/components/demo-date-context';
+import { ymdToLocalDate } from '@/lib/demo';
 import {
   APPOINTMENT_STATUSES,
   CLINIC_START_HOURS,
@@ -58,7 +60,7 @@ function weekStart(date: Date) {
 
 async function fetchCalendarAppointments(base: URLSearchParams) {
   const params = new URLSearchParams(base);
-  const pageSize = 500;
+  const pageSize = 100;
   params.set('pageSize', String(pageSize));
   params.set('sortDirection', 'asc');
   params.set('page', '1');
@@ -90,6 +92,10 @@ export default function CalendarPage() {
 
   const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<Me>('/api/v1/auth/me') });
   const timezone = me.data?.business?.timezone ?? 'Asia/Kolkata';
+  const { isDemo, anchorDate, rangeLocked } = useDemoDates(timezone);
+  const demoAnchor = anchorDate ? ymdToLocalDate(anchorDate) : null;
+  const activeCursor = isDemo && demoAnchor ? demoAnchor : cursor;
+  const activeSelected = isDemo && demoAnchor ? demoAnchor : selected;
   const locationId = getActiveLocationId();
   const hasLocations = (me.data?.locations?.length ?? 0) > 0;
   const canBook = Boolean(locationId && hasLocations);
@@ -104,18 +110,18 @@ export default function CalendarPage() {
 
   const range = useMemo(() => {
     if (view === 'Day') {
-      const start = new Date(selected);
+      const start = new Date(activeSelected);
       start.setHours(0, 0, 0, 0);
       return { from: start.getTime() - 12 * 60 * 60 * 1000, to: start.getTime() + 36 * 60 * 60 * 1000 };
     }
     if (view === 'Week') {
-      const start = weekStart(selected);
+      const start = weekStart(activeSelected);
       start.setHours(0, 0, 0, 0);
       return { from: start.getTime() - 12 * 60 * 60 * 1000, to: addDays(start, 8).getTime() };
     }
-    const start = startOfMonth(cursor);
+    const start = startOfMonth(activeCursor);
     return { from: addDays(start, -7).getTime(), to: addDays(start, 40).getTime() };
-  }, [view, selected, cursor]);
+  }, [view, activeSelected, activeCursor]);
 
   const params = new URLSearchParams({
     from: String(range.from),
@@ -165,6 +171,9 @@ export default function CalendarPage() {
   }
 
   function shift(amount: number) {
+    if (rangeLocked) {
+      return;
+    }
     if (view === 'Month') {
       setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + amount, 1));
       return;
@@ -174,16 +183,16 @@ export default function CalendarPage() {
     setCursor(next);
   }
 
-  const monthStart = startOfMonth(cursor);
-  const monthDays = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+  const monthStart = startOfMonth(activeCursor);
+  const monthDays = new Date(activeCursor.getFullYear(), activeCursor.getMonth() + 1, 0).getDate();
   const pad = monthStart.getDay();
-  const weekDays = Array.from({ length: 7 }, (_, index) => addDays(weekStart(selected), index));
+  const weekDays = Array.from({ length: 7 }, (_, index) => addDays(weekStart(activeSelected), index));
   const heading =
     view === 'Month'
-      ? cursor.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+      ? activeCursor.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
       : view === 'Week'
         ? `${weekDays[0].toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} – ${weekDays[6].toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
-        : selected.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        : activeSelected.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   function HourRows({ date }: { date: Date }) {
     return (
@@ -262,11 +271,11 @@ export default function CalendarPage() {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <Button type="button" variant="secondary" className="px-2.5" onClick={() => shift(-1)} aria-label="Previous">
+          <Button type="button" variant="secondary" className="px-2.5" onClick={() => shift(-1)} disabled={rangeLocked} aria-label="Previous">
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-[180px] text-center text-sm font-semibold text-navy-900">{heading}</div>
-          <Button type="button" variant="secondary" className="px-2.5" onClick={() => shift(1)} aria-label="Next">
+          <Button type="button" variant="secondary" className="px-2.5" onClick={() => shift(1)} disabled={rangeLocked} aria-label="Next">
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -295,7 +304,7 @@ export default function CalendarPage() {
             </div>
           ) : null}
           {view === 'Day' ? (
-            <HourRows date={selected} />
+            <HourRows date={activeSelected} />
           ) : view === 'Week' ? (
             <div className="overflow-x-auto">
               <div className="grid min-w-[720px] grid-cols-8 gap-2">
@@ -356,15 +365,18 @@ export default function CalendarPage() {
                   <div key={`pad-${index}`} />
                 ))}
                 {Array.from({ length: monthDays }, (_, index) => {
-                  const day = new Date(cursor.getFullYear(), cursor.getMonth(), index + 1);
+                  const day = new Date(activeCursor.getFullYear(), activeCursor.getMonth(), index + 1);
                   const events = appointmentsOn(day);
-                  const isSelected = sameDay(day, selected);
+                  const isSelected = sameDay(day, activeSelected);
                   const pastDay = isPastYmd(ymdInTimeZone(day.getTime(), timezone), timezone);
                   return (
                     <button
                       key={day.toDateString()}
                       type="button"
                       onClick={() => {
+                        if (rangeLocked) {
+                          return;
+                        }
                         setSelected(day);
                         if (events.length === 0 && !pastDay) {
                           openBook(day);
@@ -397,12 +409,12 @@ export default function CalendarPage() {
         </Card>
         <div className="space-y-4 xl:col-span-4">
           <h2 className="text-sm font-semibold text-navy-900">
-            {selected.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })} schedule
+            {activeSelected.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })} schedule
           </h2>
           {view === 'Day' ? (
             <p className="text-sm text-slate-500">Use the hourly list on the left to book or view a visit.</p>
           ) : (
-            <HourRows date={selected} />
+            <HourRows date={activeSelected} />
           )}
         </div>
       </div>

@@ -10,7 +10,7 @@ export async function requireSubcriptionAccess(req: Request, _res: Response, nex
     if (!tenantId) {
       throw new AppError(ERROR_CODES.TENANT_NOT_FOUND, 'Workspace context is required.', 404);
     }
-    await assertSubcriptionAccess(tenantId);
+    await assertSubcriptionAccess(tenantId, req.authUser?.roles ?? []);
     next();
   } catch (error) {
     next(error);

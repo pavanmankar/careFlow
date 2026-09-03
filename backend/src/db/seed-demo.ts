@@ -26,7 +26,6 @@ import { ULID } from '@/lib/id';
 import { hourSlotsForDate, ymdInTimeZone } from '@/lib/clinic-hours';
 import { provisionWorkspace } from '@/modules/tenants/tenants.service';
 import { listActiveMetadataItems } from '@/modules/metadata/metadata.service';
-import { migrateInventorySchema } from './migrate-inventory';
 import { ENTITY_STATUS, PERMISSION_CODES, ROLE_CODES, USER_STATUS } from '@/shared/types';
 
 const OWNER_EMAIL = 'anita.desai@sunriseclinic.in';
@@ -207,6 +206,7 @@ const LOCATIONS = [
 ] as const;
 
 const RECEPTION_PERMISSIONS = [
+  PERMISSION_CODES.DASHBOARD_READ,
   PERMISSION_CODES.BUSINESS_READ,
   PERMISSION_CODES.LOCATION_READ,
   PERMISSION_CODES.STAFF_READ,
@@ -332,13 +332,12 @@ function futureStatus(_index: number) {
 }
 
 async function requireMasters() {
-  await migrateInventorySchema();
   const [permissionRows, appointmentTypes] = await Promise.all([
     db.select({ id: permissions.id }).from(permissions).limit(1),
     listActiveMetadataItems(METADATA_KEYS.APPOINTMENT_TYPE),
   ]);
   if (!permissionRows.length || !appointmentTypes.length) {
-    throw new Error('Run `pnpm db:seed` first (metadata, modules, permissions).');
+    throw new Error('Run `pnpm db:migrate` first (metadata, modules, permissions).');
   }
 }
 
@@ -393,6 +392,17 @@ async function wipeClinicOperations(tenantId: string) {
   await db.delete(appointments).where(eq(appointments.tenantId, tenantId));
   await db.delete(patients).where(eq(patients.tenantId, tenantId));
   await db.delete(inventoryItems).where(eq(inventoryItems.tenantId, tenantId));
+}
+
+async function resetDemoUserMfa(tenantId: string) {
+  await db
+    .update(users)
+    .set({
+      mfaEnabled: false,
+      mfaSecretEnc: null,
+      mfaBackupCodesHash: null,
+    })
+    .where(eq(users.tenantId, tenantId));
 }
 
 async function ensureLocations(tenantId: string, ownerId: string, businessId: string) {
@@ -458,14 +468,20 @@ async function ensureReceptionRole(tenantId: string, ownerId: string) {
   return roleId;
 }
 
-async function ensureDoctorsAndStaff(tenantId: string, ownerId: string, passwordHash: string) {
+async function ensureDoctorsAndStaff(tenantId: string, ownerId: string, passwordHash: string, locationId: string) {
   const doctorRole = await db.query.roles.findFirst({
-    where: and(eq(roles.tenantId, tenantId), eq(roles.code, ROLE_CODES.DOCTOR), isNull(roles.deletedAt)),
+    where: and(
+      eq(roles.tenantId, tenantId),
+      eq(roles.locationId, locationId),
+      eq(roles.code, ROLE_CODES.DOCTOR),
+      isNull(roles.deletedAt),
+    ),
   });
   if (!doctorRole) {
-    throw new Error('Doctor role is missing. Run `pnpm db:seed` first.');
+    throw new Error('Doctor role is missing for this branch. Run `pnpm db:migrate` and create a location first.');
   }
   const receptionRoleId = await ensureReceptionRole(tenantId, ownerId);
+  await db.update(roles).set({ locationId }).where(eq(roles.id, receptionRoleId));
   const now = nowMs();
 
   for (const doctor of DOCTORS) {
@@ -473,8 +489,12 @@ async function ensureDoctorsAndStaff(tenantId: string, ownerId: string, password
     if (found) {
       await db
         .update(doctorProfiles)
-        .set({ specialty: doctor.specialty, updatedAt: now })
+        .set({ specialty: doctor.specialty, locationId, updatedAt: now })
         .where(eq(doctorProfiles.userId, found.id));
+      await db
+        .update(userRoles)
+        .set({ locationId })
+        .where(and(eq(userRoles.userId, found.id), eq(userRoles.tenantId, tenantId)));
       continue;
     }
     const userId = ULID.random();
@@ -493,10 +513,11 @@ async function ensureDoctorsAndStaff(tenantId: string, ownerId: string, password
       createdBy: ownerId,
       updatedBy: ownerId,
     });
-    await db.insert(userRoles).values({ userId, roleId: doctorRole.id, tenantId, createdAt: now });
+    await db.insert(userRoles).values({ userId, roleId: doctorRole.id, tenantId, locationId, createdAt: now });
     await db.insert(doctorProfiles).values({
       id: ULID.random(),
       tenantId,
+      locationId,
       userId,
       specialty: doctor.specialty,
       createdAt: now,
@@ -507,6 +528,10 @@ async function ensureDoctorsAndStaff(tenantId: string, ownerId: string, password
   for (const member of STAFF) {
     const found = await db.query.users.findFirst({ where: eq(users.email, member.email) });
     if (found) {
+      await db
+        .update(userRoles)
+        .set({ locationId })
+        .where(and(eq(userRoles.userId, found.id), eq(userRoles.tenantId, tenantId)));
       continue;
     }
     const userId = ULID.random();
@@ -525,7 +550,7 @@ async function ensureDoctorsAndStaff(tenantId: string, ownerId: string, password
       createdBy: ownerId,
       updatedBy: ownerId,
     });
-    await db.insert(userRoles).values({ userId, roleId: receptionRoleId, tenantId, createdAt: now });
+    await db.insert(userRoles).values({ userId, roleId: receptionRoleId, tenantId, locationId, createdAt: now });
   }
 
   const doctorUsers = await db.query.users.findMany({
@@ -541,7 +566,7 @@ async function ensureDoctorsAndStaff(tenantId: string, ownerId: string, password
   });
 }
 
-async function seedPatients(tenantId: string, ownerId: string) {
+async function seedPatients(tenantId: string, ownerId: string, locationId: string) {
   const now = Number(nowMs());
   const rows = [];
   for (let index = 0; index < PATIENT_TARGET; index += 1) {
@@ -550,6 +575,7 @@ async function seedPatients(tenantId: string, ownerId: string) {
     rows.push({
       id: ULID.random(),
       tenantId,
+      locationId,
       firstName: person.firstName,
       lastName: person.lastName,
       phone: person.phone,
@@ -780,20 +806,25 @@ async function main() {
   }
 
   await wipeClinicOperations(tenantId);
+  await resetDemoUserMfa(tenantId);
 
   const passwordHash = await hash(CLINIC_PASSWORD);
   await ensureLocations(tenantId, ownerId, business.id);
-  const [primaryLocation] = await db
+  const allLocations = await db
     .select()
     .from(locations)
     .where(and(eq(locations.tenantId, tenantId), isNull(locations.deletedAt)))
-    .orderBy(locations.createdAt)
-    .limit(1);
+    .orderBy(locations.createdAt);
+  const primaryLocation = allLocations[0];
   if (!primaryLocation) {
     throw new Error('Demo clinic location was not found.');
   }
-  const doctorUsers = await ensureDoctorsAndStaff(tenantId, ownerId, passwordHash);
-  const patientRows = await seedPatients(tenantId, ownerId);
+  const { bindTenantToNewLocation } = await import('@/lib/location-bind');
+  for (const loc of allLocations) {
+    await bindTenantToNewLocation(tenantId, loc.id);
+  }
+  const doctorUsers = await ensureDoctorsAndStaff(tenantId, ownerId, passwordHash, primaryLocation.id);
+  const patientRows = await seedPatients(tenantId, ownerId, primaryLocation.id);
   await seedAppointments(
     tenantId,
     ownerId,

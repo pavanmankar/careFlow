@@ -10,7 +10,7 @@ CareFlow has two environments in this phase: **local** (your machine) and **shar
 | API process | Compose / `pnpm dev` on `:3001` | Render Web Service (`careflow-api-dev`) |
 | Data | Local MySQL + Redis | One cloud MySQL + one cloud Redis |
 
-Demo and prod stacks are out of scope. `/demo` still works on the shared URL after `pnpm db:seed:public-demo` against the **dev** database.
+Demo and prod stacks are out of scope. `/demo` works on the shared URL after `pnpm db:migrate` against the **dev** database (includes `0002_seed_public_demo.sql`).
 
 ---
 
@@ -68,8 +68,6 @@ Do the code wiring (rewrites, CORS, this file) **before** the first GitHub push 
    ```bash
    cd backend
    pnpm db:migrate
-   pnpm db:seed
-   pnpm db:seed:public-demo
    ```
 
    Optional: `pnpm db:seed:demo` for the large Sunrise clinic. Never point these at a future prod database.

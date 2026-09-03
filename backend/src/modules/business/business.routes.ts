@@ -11,7 +11,7 @@ import {
   paginationQuerySchema,
   createLocationSchema,
   updateLocationSchema,
-  registerSchema,
+  workspaceProvisionSchema,
 } from '@/shared/validation';
 import * as locations from '@/modules/locations/locations.service';
 import * as tenants from '@/modules/tenants/tenants.service';
@@ -25,6 +25,7 @@ const updateTenantSchema = z.object({ name: z.string().min(1).max(255).optional(
 const updateTenantSubscriptionSchema = z.object({
   subcriptionEnabled: z.boolean().optional(),
   subcriptionUntil: z.number().int().nullable().optional(),
+  mfaAuthenticationEnabled: z.boolean().optional(),
 });
 
 tenantsRouter.get(
@@ -71,7 +72,7 @@ tenantsRouter.post(
   requireAuth,
   requireSuperAdmin,
   wrap(async (req, res) => {
-    const input = parseDto(registerSchema, req.body);
+    const input = parseDto(workspaceProvisionSchema, req.body);
     const data = await tenants.createTenant(input, req.authUser!.userId);
     await auditFromReq(req, { action: 'TENANT_CREATE', resource: 'tenant', resourceId: data.id, tenantId: data.id });
     res.status(201).json({ data });
@@ -124,6 +125,19 @@ tenantsRouter.post(
   wrap(async (req, res) => {
     const data = await tenants.setTenantActive(req.params.id, false, req.authUser!.userId);
     await auditFromReq(req, { action: 'TENANT_DEACTIVATE', resource: 'tenant', resourceId: data.id, tenantId: data.id });
+    res.json({ data });
+  }),
+);
+
+tenantsRouter.post(
+  '/:id/users/:userId/mfa-reset',
+  requireAuth,
+  requireSuperAdmin,
+  wrap(async (req, res) => {
+    const data = await tenants.resetTenantUserMfa(req.params.id, req.params.userId, req.authUser!, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
     res.json({ data });
   }),
 );

@@ -15,6 +15,7 @@ import { DateRangeCalendar, toYmd } from '@/components/date-range-calendar';
 import { IconLink } from '@/components/ui/icon-button';
 import { ListSearch, useAppliedSearch } from '@/components/list-search';
 import { LocationRequiredBanner } from '@/components/location-required-banner';
+import { useDemoDates } from '@/components/demo-date-context';
 import {
   APPOINTMENT_STATUSES,
   APPOINTMENT_TYPES,
@@ -58,6 +59,9 @@ export default function AppointmentsPage() {
   }, [appliedSearch]);
   const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<Me>('/api/v1/auth/me') });
   const timezone = me.data?.business?.timezone ?? 'Asia/Kolkata';
+  const { fromYmd: demoFromYmd, toYmd: demoToYmd, rangeLocked } = useDemoDates(timezone);
+  const effectiveFromYmd = rangeLocked ? demoFromYmd : fromYmd;
+  const effectiveToYmd = rangeLocked ? demoToYmd : toYmd;
   const locationId = getActiveLocationId();
   const hasLocations = (me.data?.locations?.length ?? 0) > 0;
   const canBook = Boolean(locationId && hasLocations);
@@ -74,24 +78,24 @@ export default function AppointmentsPage() {
   if (status !== 'all') {
     params.set('status', status);
   }
-  if (fromYmd) {
-    params.set('from', String(zonedLocalToUtcMs(fromYmd, 0, timezone)));
+  if (effectiveFromYmd) {
+    params.set('from', String(zonedLocalToUtcMs(effectiveFromYmd, 0, timezone)));
   }
-  if (toYmd) {
-    params.set('to', String(zonedLocalToUtcMs(addDaysYmd(toYmd, 1), 0, timezone)));
+  if (effectiveToYmd) {
+    params.set('to', String(zonedLocalToUtcMs(addDaysYmd(effectiveToYmd, 1), 0, timezone)));
   }
   if (appliedSearch) {
     params.set('search', appliedSearch);
   }
   const appointments = useQuery({
-    queryKey: ['appointments', locationId, type, status, fromYmd, toYmd, page, appliedSearch],
+    queryKey: ['appointments', locationId, type, status, effectiveFromYmd, effectiveToYmd, page, appliedSearch],
     queryFn: () =>
       api.get<{ items: ClinicAppointment[]; total: number; statusCounts: StatusCount[] }>(
         `/api/v1/appointments?${params.toString()}`,
       ),
   });
   const doctors = useQuery({
-    queryKey: ['doctors'],
+    queryKey: ['doctors', locationId],
     queryFn: () => api.get<{ items: ClinicDoctor[] }>('/api/v1/doctors'),
   });
   const items = appointments.data?.items ?? [];
@@ -109,11 +113,15 @@ export default function AppointmentsPage() {
             className="w-full min-w-[10rem] max-w-xs sm:w-48"
           />
           <DateRangeCalendar
-            from={fromYmd}
-            to={toYmd}
+            from={effectiveFromYmd}
+            to={effectiveToYmd}
             label=""
             compact
+            disabled={rangeLocked}
             onChange={(next) => {
+              if (rangeLocked) {
+                return;
+              }
               setFromYmd(next.from);
               setToYmd(next.to);
               setPage(1);

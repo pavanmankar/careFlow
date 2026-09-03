@@ -4,6 +4,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { registerSchema } from '@/lib/validation';
+import {
+  isFullSessionResponse,
+  isMfaEnrollmentResponse,
+  type MfaLoginResponse,
+} from '@/lib/mfa';
 import { api, ApiClientError, setAccessToken, setApiBusy } from '@/lib/api';
 import { resolveBranchAfterAuth, type MeWithLocations } from '@/lib/location';
 import { Button } from '@/components/ui/button';
@@ -12,10 +17,12 @@ import { Select } from '@/components/ui/select';
 import { ClinicLogo } from '@/components/clinic-logo';
 import { AuthBrandPanel } from '@/components/auth-brand-panel';
 import Link from 'next/link';
+import { LegalDocumentLink } from '@/components/legal/legal-document-link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { PRIVACY_POLICY_VERSION, TERMS_VERSION } from '@/content/legal/legal-meta';
 
 const fieldClass =
   'h-12 rounded-xl border-0 bg-[#F3F4F6] px-4 text-sm placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-brand-500/20';
@@ -81,17 +88,32 @@ export default function RegisterPage() {
     setApiBusy(true, 'Creating account');
     try {
       const { firstName, lastName } = splitName(values.fullName);
-      const data = await api.post<{ accessToken: string }>('/api/v1/auth/register', {
+      const data = await api.post<MfaLoginResponse>('/api/v1/auth/register', {
         firstName,
         lastName,
         email: values.email,
         password: values.password,
         businessTypeId: values.businessTypeId,
         businessName: values.businessName,
+        termsAccepted: true,
+        privacyAccepted: true,
+        termsVersion: TERMS_VERSION,
+        privacyVersion: PRIVACY_POLICY_VERSION,
       });
-      setAccessToken(data.accessToken);
-      const me = await api.get<MeWithLocations>('/api/v1/auth/me');
-      router.push(resolveBranchAfterAuth(me));
+      if (isMfaEnrollmentResponse(data)) {
+        setApiBusy(false);
+        setBusy(false);
+        router.push(`/mfa/enroll?token=${encodeURIComponent(data.enrollToken)}`);
+        return;
+      }
+      if (isFullSessionResponse(data)) {
+        setAccessToken(data.accessToken);
+        const me = await api.get<MeWithLocations>('/api/v1/auth/me');
+        setApiBusy(false);
+        router.push(resolveBranchAfterAuth(me));
+        return;
+      }
+      throw new Error('Unexpected registration response');
     } catch (err) {
       setBusy(false);
       setApiBusy(false);
@@ -180,14 +202,16 @@ export default function RegisterPage() {
               <label className="mb-2 block text-sm font-medium text-slate-600">Name of clinic</label>
               <Input className={fieldClass} placeholder="Sunrise Family Clinic" {...form.register('businessName')} />
             </div>
-            <label className="flex items-start gap-2 text-sm text-slate-600">
+            <label className="flex items-start gap-2 text-left text-sm text-slate-600">
               <input
                 type="checkbox"
                 className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                 {...form.register('terms')}
               />
               <span>
-                I agree to the CareFlow terms of service and privacy policy.
+                I agree to the CareFlow{' '}
+                <LegalDocumentLink document="terms">terms of service</LegalDocumentLink> and{' '}
+                <LegalDocumentLink document="privacy">privacy policy</LegalDocumentLink>.
               </span>
             </label>
             {form.formState.errors.terms && (

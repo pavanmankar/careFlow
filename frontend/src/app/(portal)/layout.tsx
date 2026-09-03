@@ -5,6 +5,7 @@ import { PortalNavProvider } from '@/components/portal-navigation';
 import { PortalScreen } from '@/components/portal-screens';
 import { api, getAccessToken, getActiveLocationId, setActiveLocationId, setApiBusy } from '@/lib/api';
 import type { MeWithLocations } from '@/lib/location';
+import { needsLegalAcceptance } from '@/lib/legal';
 import { useRouter, usePathname } from 'next/navigation';
 import { ReactNode, useEffect, useState } from 'react';
 
@@ -23,6 +24,10 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
       try {
         const me = await api.get<MeWithLocations>('/api/v1/auth/me');
         if (cancelled) {
+          return;
+        }
+        if (needsLegalAcceptance(me.legal)) {
+          router.replace('/accept-legal');
           return;
         }
         const isSuperAdmin = me.roles?.includes('SUPER_ADMIN');

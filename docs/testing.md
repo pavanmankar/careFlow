@@ -12,8 +12,7 @@ pnpm test
 ```bash
 cd backend
 docker compose -f ../docker-compose.yml up mysql redis -d
-pnpm db:migrate
-pnpm db:seed
+pnpm db:fresh
 RUN_INTEGRATION=true pnpm test
 ```
 

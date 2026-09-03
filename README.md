@@ -14,8 +14,8 @@ careflow/
 cd backend
 cp .env.example .env
 pnpm install
-pnpm db:migrate
-pnpm db:seed
+docker compose -f ../docker-compose.yml up mysql redis -d
+pnpm db:fresh
 pnpm db:seed:demo
 pnpm dev
 ```
@@ -23,7 +23,7 @@ pnpm dev
 API: http://localhost:3001  
 Swagger: http://localhost:3001/api/docs
 
-`pnpm db:seed` loads masters and the platform admin (`superadmin@gmail.com` / `PlatformAdmin!234`).  
+`pnpm db:migrate` applies masters, platform admin, and public demo clinic via `drizzle/0001_seed_masters.sql` and `drizzle/0002_seed_public_demo.sql`.  
 `pnpm db:seed:demo` is optional and fills **one** clinic (Sunrise Dental Clinic) with 500 patients and about a year of dental visits. Running it again replaces that clinic’s operational rows only. Login: `anita.desai@sunriseclinic.in` / `SunriseClinic!234`.
 
 ## Frontend

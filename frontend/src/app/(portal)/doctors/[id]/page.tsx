@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { usePortalId } from '@/components/portal-navigation';
 import { useEffect, useState } from 'react';
-import { api, ApiClientError } from '@/lib/api';
+import { api, ApiClientError, getActiveLocationId } from '@/lib/api';
 import { formatUtcMillis } from '@/lib/datetime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { AddressFields } from '@/components/address-fields';
 import { type Address } from '@/lib/address';
 import { BackLink } from '@/components/ui/icon-button';
 import { StaffAvatar } from '@/components/staff-avatar';
+import { Modal } from '@/components/ui/modal';
 
 interface DoctorDetail {
   id: string;
@@ -28,11 +29,13 @@ interface DoctorDetail {
   status: string;
   createdAt: number | null;
   address: Address | null;
+  mfaEnabled: boolean;
 }
 
 interface Me {
   user: { id: string };
   permissions: string[];
+  roles: string[];
 }
 
 type DoctorForm = {
@@ -53,9 +56,10 @@ export default function DoctorDetailPage() {
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [mfaResetOpen, setMfaResetOpen] = useState(false);
   const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<Me>('/api/v1/auth/me') });
   const doctor = useQuery({
-    queryKey: ['doctors', params.id],
+    queryKey: ['doctors', getActiveLocationId(), params.id],
     queryFn: () => api.get<DoctorDetail>(`/api/v1/doctors/${params.id}`),
     enabled: Boolean(params.id),
   });
@@ -75,9 +79,11 @@ export default function DoctorDetailPage() {
   });
   const permissions = me.data?.permissions ?? [];
   const can = (code: string) => permissions.includes(code);
-  const isSelf = Boolean(me.data?.user.id && me.data.user.id === params.id);
-  const canEdit = can('DOCTOR_UPDATE') && !isSelf;
   const user = doctor.data;
+  const isSelf = Boolean(me.data?.user.id && me.data.user.id === params.id);
+  const isOwner = me.data?.roles.includes('TENANT_OWNER') ?? false;
+  const canResetMfa = isOwner && !isSelf && Boolean(user?.mfaEnabled);
+  const canEdit = can('DOCTOR_UPDATE') && !isSelf;
 
   useEffect(() => {
     if (!user) {
@@ -123,6 +129,20 @@ export default function DoctorDetailPage() {
     onError: (err) => {
       setMessage(null);
       setError(err instanceof ApiClientError ? err.message : 'Unable to save doctor');
+    },
+  });
+
+  const resetMfa = useMutation({
+    mutationFn: () => api.post(`/api/v1/doctors/${params.id}/mfa-reset`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['doctors'] });
+      qc.invalidateQueries({ queryKey: ['doctors', params.id] });
+      setMfaResetOpen(false);
+      setMessage('Two-factor authentication was reset. This doctor must set up their authenticator again on next sign-in.');
+      setError(null);
+    },
+    onError: (err) => {
+      setError(err instanceof ApiClientError ? err.message : 'Unable to reset two-factor authentication');
     },
   });
 
@@ -174,7 +194,21 @@ export default function DoctorDetailPage() {
               <Label>Created</Label>
               <Input value={user?.createdAt ? formatUtcMillis(user.createdAt) : ''} disabled />
             </div>
+            <div>
+              <Label>Two-factor authentication</Label>
+              <Input value={user ? (user.mfaEnabled ? 'Enabled' : 'Not enrolled') : ''} disabled />
+            </div>
           </div>
+          {canResetMfa && (
+            <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+              <Button type="button" variant="danger" onClick={() => setMfaResetOpen(true)}>
+                Reset 2FA
+              </Button>
+              <p className="text-sm text-slate-500">
+                Clears this doctor&apos;s authenticator so they can enroll again on next sign-in.
+              </p>
+            </div>
+          )}
           <AddressFields register={form.register} disabled={!canEdit} />
           {message && <p className="text-sm text-emerald-700">{message}</p>}
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -185,6 +219,32 @@ export default function DoctorDetailPage() {
           )}
         </form>
       </Card>
+
+      <Modal
+        open={mfaResetOpen}
+        title="Reset two-factor authentication"
+        onClose={() => setMfaResetOpen(false)}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setMfaResetOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={resetMfa.isPending}
+              onClick={() => resetMfa.mutate()}
+            >
+              {resetMfa.isPending ? 'Resetting…' : 'Reset 2FA'}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-slate-600">
+          This will remove {user?.name}&apos;s authenticator setup and sign them out of all devices. They must scan a
+          new QR code on their next sign-in.
+        </p>
+      </Modal>
     </div>
   );
 }

@@ -40,7 +40,8 @@ const features = [
   {
     icon: Shield,
     title: 'Roles & permissions',
-    description: 'Granular access for reception, doctors, and owners — plus multi-clinic platform admin.',
+    description:
+      'Granular staff roles, per-branch doctor permissions, optional MFA, and platform admin — with audited security actions.',
     span: 'lg:col-span-2',
     featured: false,
   },

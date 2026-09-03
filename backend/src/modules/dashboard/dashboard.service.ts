@@ -237,12 +237,17 @@ function patientWhere(range: ClinicRange) {
     isNull(patients.deletedAt),
     gte(patients.createdAt, BigInt(range.startMs)),
     lt(patients.createdAt, BigInt(range.endMs)),
+    ...(range.locationId ? [eq(patients.locationId, range.locationId)] : []),
   );
 }
 
 export async function getCounts(query: DashboardQuery) {
   const range = await clinicRange(query);
-  const allPatientsWhere = and(eq(patients.tenantId, range.tenantId), isNull(patients.deletedAt));
+  const allPatientsWhere = and(
+    eq(patients.tenantId, range.tenantId),
+    isNull(patients.deletedAt),
+    ...(range.locationId ? [eq(patients.locationId, range.locationId)] : []),
+  );
   const [patientTotal, newPatientTotal, appointmentTotal] = await Promise.all([
     db.select({ total: count() }).from(patients).where(allPatientsWhere),
     db.select({ total: count() }).from(patients).where(patientWhere(range)),

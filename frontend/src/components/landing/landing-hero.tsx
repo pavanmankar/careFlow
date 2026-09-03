@@ -5,7 +5,7 @@ import { ArrowRight, CheckCircle2, PlayCircle, Sparkles } from 'lucide-react';
 
 const highlights = [
   'Book, document, and bill in one flow',
-  'Role-based access for every team member',
+  'MFA, roles, and branch isolation built in',
   'PDF summaries ready for patients',
 ];
 

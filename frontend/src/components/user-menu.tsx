@@ -11,7 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
-import { type Address } from '@/lib/address';
 import { StaffAvatar } from '@/components/staff-avatar';
 
 interface Me {
@@ -43,7 +42,6 @@ interface Business {
   timezone: string;
   currency: string;
   country: string | null;
-  address: Address | null;
   businessType: { name: string };
 }
 
@@ -57,12 +55,6 @@ type ProfileForm = {
   clinicPhone: string;
   website: string;
   currency: string;
-  line1: string;
-  line2: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  country: string;
 };
 
 function systemTimezone() {
@@ -116,12 +108,6 @@ export function UserMenu() {
       clinicPhone: '',
       website: '',
       currency: '',
-      line1: '',
-      line2: '',
-      city: '',
-      state: '',
-      postalCode: '',
-      country: '',
     },
   });
   const user = me.data?.user;
@@ -153,7 +139,6 @@ export function UserMenu() {
     if (!user || !profileOpen) {
       return;
     }
-    const address = business.data?.address ?? {};
     form.reset({
       firstName: user.firstName,
       lastName: user.lastName,
@@ -164,12 +149,6 @@ export function UserMenu() {
       clinicPhone: business.data?.phone ?? '',
       website: business.data?.website ?? '',
       currency: business.data?.currency ?? '',
-      line1: address.line1 ?? '',
-      line2: address.line2 ?? '',
-      city: address.city ?? '',
-      state: address.state ?? '',
-      postalCode: address.postalCode ?? '',
-      country: address.country ?? '',
     });
     setExtraRoleIds(
       (me.data?.roleAssignments ?? []).filter((role) => role.code !== 'TENANT_OWNER').map((role) => role.id),
@@ -210,14 +189,6 @@ export function UserMenu() {
           website: values.website || '',
           timezone: systemTimezone(),
           currency: values.currency,
-          address: {
-            line1: values.line1 || undefined,
-            line2: values.line2 || undefined,
-            city: values.city || undefined,
-            state: values.state || undefined,
-            postalCode: values.postalCode || undefined,
-            country: values.country || undefined,
-          },
         });
       }
     },
@@ -369,43 +340,21 @@ export function UserMenu() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Clinic email</Label>
-                  <Input {...form.register('clinicEmail')} disabled={!canUpdateClinic} />
+                  <Label required={canUpdateClinic}>Clinic email</Label>
+                  <Input
+                    type="email"
+                    {...form.register('clinicEmail', { required: canUpdateClinic })}
+                    disabled={!canUpdateClinic}
+                  />
                 </div>
                 <div>
-                  <Label>Clinic phone</Label>
-                  <Input {...form.register('clinicPhone')} disabled={!canUpdateClinic} />
+                  <Label required={canUpdateClinic}>Clinic phone</Label>
+                  <Input {...form.register('clinicPhone', { required: canUpdateClinic })} disabled={!canUpdateClinic} />
                 </div>
               </div>
               <div>
                 <Label>Website</Label>
                 <Input {...form.register('website')} disabled={!canUpdateClinic} />
-              </div>
-              <div>
-                <Label>Address line 1</Label>
-                <Input {...form.register('line1')} disabled={!canUpdateClinic} />
-              </div>
-              <div>
-                <Label>Address line 2</Label>
-                <Input {...form.register('line2')} disabled={!canUpdateClinic} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>City</Label>
-                  <Input {...form.register('city')} disabled={!canUpdateClinic} />
-                </div>
-                <div>
-                  <Label>State</Label>
-                  <Input {...form.register('state')} disabled={!canUpdateClinic} />
-                </div>
-                <div>
-                  <Label>Postal code</Label>
-                  <Input {...form.register('postalCode')} disabled={!canUpdateClinic} />
-                </div>
-                <div>
-                  <Label>Country</Label>
-                  <Input {...form.register('country')} disabled={!canUpdateClinic} />
-                </div>
               </div>
             </section>
           )}

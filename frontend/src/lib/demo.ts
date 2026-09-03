@@ -3,7 +3,23 @@ export const PUBLIC_DEMO = {
   password: 'DemoViewer!234',
   clinicName: 'CareFlow Demo Clinic',
   roleCode: 'DEMO_VIEWER',
+  anchorFrom: '2026-08-30',
+  anchorTo: '2026-08-31',
+  anchorDate: '2026-08-31',
 } as const;
+
+export function demoDateRange() {
+  return {
+    period: 'custom' as const,
+    from: PUBLIC_DEMO.anchorFrom,
+    to: PUBLIC_DEMO.anchorTo,
+  };
+}
+
+export function ymdToLocalDate(ymd: string) {
+  const [year, month, day] = ymd.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
 
 const WRITE_PERMISSION_SUFFIXES = ['_CREATE', '_UPDATE', '_DELETE', '_ACTIVATE'] as const;
 const WRITE_PERMISSION_CODES = ['ROLE_ASSIGN_PERMISSIONS', 'USER_ASSIGN_ROLE'] as const;

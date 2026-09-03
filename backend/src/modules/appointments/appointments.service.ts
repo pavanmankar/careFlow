@@ -17,7 +17,7 @@ const CANCELLED = 'Cancelled';
 const EXPIRED = 'Expired';
 const INACTIVE_STATUSES: string[] = [CANCELLED, EXPIRED];
 
-async function patientNameFilter(tenantId: string, search?: string) {
+async function patientNameFilter(tenantId: string, locationId: string | null, search?: string) {
   const term = search?.trim();
   if (!term) {
     return [];
@@ -29,6 +29,7 @@ async function patientNameFilter(tenantId: string, search?: string) {
       and(
         eq(patients.tenantId, tenantId),
         isNull(patients.deletedAt),
+        ...(locationId ? [eq(patients.locationId, locationId)] : []),
         or(
           likeContains(patients.firstName, term),
           likeContains(patients.lastName, term),
@@ -69,7 +70,7 @@ export async function listAppointments(query: {
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? 10;
   const sortDirection = query.sortDirection === 'asc' ? 'asc' : 'desc';
-  const byPatientName = await patientNameFilter(tenantId, query.search);
+  const byPatientName = await patientNameFilter(tenantId, locationId, query.search);
   const locationFilter = locationId ? [eq(appointments.locationId, locationId)] : [];
   const filters = [
     eq(appointments.tenantId, tenantId),
@@ -171,6 +172,7 @@ export async function createAppointment(input: CreateAppointmentInput, actorId: 
   const clash = await db.query.appointments.findFirst({
     where: and(
       eq(appointments.tenantId, tenantId),
+      eq(appointments.locationId, locationId),
       eq(appointments.doctorUserId, doctor.id),
       isNull(appointments.deletedAt),
       notInArray(appointments.status, INACTIVE_STATUSES),
@@ -184,7 +186,12 @@ export async function createAppointment(input: CreateAppointmentInput, actorId: 
   const now = BigInt(utcNowMs());
   const phone = input.patient.phone.trim();
   let patient = await db.query.patients.findFirst({
-    where: and(eq(patients.tenantId, tenantId), eq(patients.phone, phone), isNull(patients.deletedAt)),
+    where: and(
+      eq(patients.tenantId, tenantId),
+      eq(patients.locationId, locationId),
+      eq(patients.phone, phone),
+      isNull(patients.deletedAt),
+    ),
   });
   const dateOfBirth = parseDob(input.patient.dateOfBirth);
   if (!patient) {
@@ -192,6 +199,7 @@ export async function createAppointment(input: CreateAppointmentInput, actorId: 
     await db.insert(patients).values({
       id: patientId,
       tenantId,
+      locationId,
       firstName: input.patient.firstName.trim(),
       lastName: input.patient.lastName.trim(),
       phone,
@@ -205,6 +213,8 @@ export async function createAppointment(input: CreateAppointmentInput, actorId: 
       updatedBy: actorId,
     });
     patient = await db.query.patients.findFirst({ where: eq(patients.id, patientId) });
+  } else if (patient.locationId !== locationId) {
+    throw new AppError(ERROR_CODES.PATIENT_NOT_FOUND, 'The requested resource was not found.', 404);
   }
   if (!patient) {
     throw new AppError(ERROR_CODES.PATIENT_NOT_FOUND, 'The requested resource was not found.', 404);
@@ -282,6 +292,7 @@ export async function rescheduleAppointment(id: string, input: RescheduleAppoint
     const clash = await db.query.appointments.findFirst({
       where: and(
         eq(appointments.tenantId, tenantId),
+        eq(appointments.locationId, locationId),
         eq(appointments.doctorUserId, doctor.id),
         isNull(appointments.deletedAt),
         notInArray(appointments.status, INACTIVE_STATUSES),

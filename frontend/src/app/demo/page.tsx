@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import { api, ApiClientError, setAccessToken } from '@/lib/api';
+import { isFullSessionResponse, type MfaLoginResponse } from '@/lib/mfa';
 import { PUBLIC_DEMO } from '@/lib/demo';
 import { resolveBranchAfterAuth, type MeWithLocations } from '@/lib/location';
 import { ClinicLogo } from '@/components/clinic-logo';
@@ -18,12 +19,15 @@ export default function DemoLoginPage() {
 
     async function enterDemo() {
       try {
-        const data = await api.post<{ accessToken: string }>('/api/v1/auth/login', {
+        const data = await api.post<MfaLoginResponse>('/api/v1/auth/login', {
           email: PUBLIC_DEMO.email,
           password: PUBLIC_DEMO.password,
         });
         if (cancelled) {
           return;
+        }
+        if (!isFullSessionResponse(data)) {
+          throw new ApiClientError('MFA_REQUIRED', 'Demo login requires MFA setup. Run pnpm db:migrate (or db:fresh).', 403);
         }
         setAccessToken(data.accessToken);
         const me = await api.get<MeWithLocations>('/api/v1/auth/me');
@@ -35,7 +39,7 @@ export default function DemoLoginPage() {
         setError(
           err instanceof ApiClientError
             ? err.message
-            : 'Unable to start demo. Ask your administrator to run db:seed:public-demo.',
+            : 'Unable to start demo. Run pnpm db:fresh in the backend.',
         );
       }
     }

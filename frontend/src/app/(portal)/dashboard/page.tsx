@@ -11,7 +11,6 @@ import {
   TYPE_COLORS,
   formatSlotLabel,
   hourInTimeZone,
-  ymdInTimeZone,
   zonedLocalToUtcMs,
   type ClinicAppointment,
 } from '@/lib/clinic';
@@ -27,6 +26,8 @@ import { PortalLink } from '@/components/portal-navigation';
 import { DonutChart, GroupedBarChart, LineChart } from '@/components/medlink-charts';
 import { revenueSeries } from '@/lib/medlink-data';
 import { ChartRangeControl, useChartRange } from '@/components/chart-range-control';
+import { useDemoDates } from '@/components/demo-date-context';
+import { canViewDashboard } from '@/lib/portal-routes';
 
 interface Me {
   user: { id: string; firstName: string };
@@ -231,7 +232,12 @@ function addDaysYmd(ymd: string, days: number) {
 function ClinicDashboard() {
   const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<Me>('/api/v1/auth/me') });
   const timezone = me.data?.business?.timezone ?? 'Asia/Kolkata';
+  const { dayYmd, isDemo } = useDemoDates(timezone);
   const locationId = getActiveLocationId();
+  const canReadDashboard = canViewDashboard({
+    roles: me.data?.roles ?? [],
+    permissions: me.data?.permissions ?? [],
+  });
   const canReadAppointments = me.data?.permissions.includes('APPOINTMENT_READ') ?? false;
   const countsRange = useChartRange();
   const ageRange = useChartRange();
@@ -244,47 +250,46 @@ function ClinicDashboard() {
   const counts = useQuery({
     queryKey: ['dashboard', 'counts', locationId, countsRange.query],
     queryFn: () => api.get<CountsData>(`/api/v1/dashboard/counts?${countsRange.query}`),
-    enabled: countsRange.ready,
+    enabled: canReadDashboard && countsRange.ready,
   });
   const age = useQuery({
     queryKey: ['dashboard', 'patients-by-age', locationId, ageRange.query],
     queryFn: () => api.get<AgeData>(`/api/v1/dashboard/patients-by-age?${ageRange.query}`),
-    enabled: ageRange.ready,
+    enabled: canReadDashboard && ageRange.ready,
   });
   const types = useQuery({
     queryKey: ['dashboard', 'appointments-by-type', locationId, typeRange.query],
     queryFn: () => api.get<TypeData>(`/api/v1/dashboard/appointments-by-type?${typeRange.query}`),
-    enabled: typeRange.ready,
+    enabled: canReadDashboard && typeRange.ready,
   });
   const statuses = useQuery({
     queryKey: ['dashboard', 'appointments-by-status', locationId, statusRange.query],
     queryFn: () => api.get<StatusData>(`/api/v1/dashboard/appointments-by-status?${statusRange.query}`),
-    enabled: statusRange.ready,
+    enabled: canReadDashboard && statusRange.ready,
   });
   const patientsOverTime = useQuery({
     queryKey: ['dashboard', 'patients-over-time', locationId, patientsRange.query],
     queryFn: () => api.get<PointsData>(`/api/v1/dashboard/patients-over-time?${patientsRange.query}`),
-    enabled: patientsRange.ready,
+    enabled: canReadDashboard && patientsRange.ready,
   });
   const appointmentsOverTime = useQuery({
     queryKey: ['dashboard', 'appointments-over-time', locationId, appointmentsRange.query],
     queryFn: () => api.get<PointsData>(`/api/v1/dashboard/appointments-over-time?${appointmentsRange.query}`),
-    enabled: appointmentsRange.ready,
+    enabled: canReadDashboard && appointmentsRange.ready,
   });
   const revenue = useQuery({
     queryKey: ['dashboard', 'revenue-over-time', locationId, revenueRange.query],
     queryFn: () => api.get<RevenueData>(`/api/v1/dashboard/revenue-over-time?${revenueRange.query}`),
-    enabled: revenueRange.ready,
+    enabled: canReadDashboard && revenueRange.ready,
   });
 
-  const todayYmd = ymdInTimeZone(Date.now(), timezone);
-  const todayFrom = zonedLocalToUtcMs(todayYmd, 0, timezone);
-  const todayTo = zonedLocalToUtcMs(addDaysYmd(todayYmd, 1), 0, timezone);
+  const todayFrom = zonedLocalToUtcMs(dayYmd, 0, timezone);
+  const todayTo = zonedLocalToUtcMs(addDaysYmd(dayYmd, 1), 0, timezone);
   const todayAppointments = useQuery({
     queryKey: ['appointments', 'today', locationId, todayFrom, todayTo],
     queryFn: () =>
       api.get<{ items: ClinicAppointment[]; total: number }>(
-        `/api/v1/appointments?page=1&pageSize=2000&sortDirection=asc&from=${todayFrom}&to=${todayTo}`,
+        `/api/v1/appointments?page=1&pageSize=100&sortDirection=asc&from=${todayFrom}&to=${todayTo}`,
       ),
     enabled: canReadAppointments && Boolean(me.data),
   });
@@ -410,7 +415,7 @@ function ClinicDashboard() {
       {canReadAppointments ? (
         <Card className="flex min-h-0 min-w-0 flex-col lg:sticky lg:top-0 lg:h-[calc(100vh-10.5rem)] lg:w-[30%]">
           <div className="mb-3 flex shrink-0 items-baseline justify-between gap-2">
-            <h2 className="text-sm font-semibold text-navy-900">Today’s appointments</h2>
+            <h2 className="text-sm font-semibold text-navy-900">{isDemo ? 'Appointments' : 'Today’s appointments'}</h2>
             <span className="text-xs text-slate-400">{todayAppointments.data?.total ?? 0}</span>
           </div>
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
@@ -435,7 +440,7 @@ function ClinicDashboard() {
                 </PortalLink>
               ))
             ) : (
-              <p className="text-sm text-slate-500">No appointments today.</p>
+              <p className="text-sm text-slate-500">{isDemo ? 'No appointments on this day.' : 'No appointments today.'}</p>
             )}
           </div>
         </Card>
@@ -450,9 +455,29 @@ export default function DashboardPage() {
     queryFn: () => api.get<Me>('/api/v1/auth/me'),
   });
   const isSuperAdmin = me.data?.roles.includes('SUPER_ADMIN') ?? false;
+  const canReadDashboard = canViewDashboard({
+    roles: me.data?.roles ?? [],
+    permissions: me.data?.permissions ?? [],
+  });
+
+  if (me.isLoading) {
+    return <p className="text-sm text-slate-500">Loading…</p>;
+  }
 
   if (isSuperAdmin) {
     return <SuperAdminDashboard />;
+  }
+
+  if (!canReadDashboard) {
+    return (
+      <Card className="p-6">
+        <h2 className="text-lg font-semibold text-navy-900">Dashboard access required</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Your role does not include permission to view the clinic dashboard. Contact your clinic owner or
+          administrator if you need access.
+        </p>
+      </Card>
+    );
   }
 
   return <ClinicDashboard />;

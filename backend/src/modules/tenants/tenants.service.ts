@@ -11,7 +11,7 @@ import {
   ROLE_CODES,
   USER_STATUS,
 } from '@/shared/types';
-import { RegisterInput } from '@/shared/validation';
+import { WorkspaceProvisionInput } from '@/shared/validation';
 import { db, likeContains, updateStamp } from '@/db/client';
 import {
   businesses,
@@ -33,6 +33,10 @@ import {
   trialUntilFromNow,
   updateTenantSubscription,
 } from '@/lib/subscription';
+import { getMfaAuthenticationEnabled } from '@/lib/mfa-settings';
+import { isTenantMfaRequired } from '@/lib/mfa-policy';
+import { AuthUser } from '@/modules/auth/auth.types';
+import { resetUserMfa as clearUserMfa } from '@/modules/mfa/mfa.service';
 
 type Address = {
   line1?: string;
@@ -150,7 +154,7 @@ export async function listTenants(query: {
   };
 }
 
-export async function provisionWorkspace(input: RegisterInput, actorUserId?: string) {
+export async function provisionWorkspace(input: WorkspaceProvisionInput, actorUserId?: string) {
   const existing = await db.query.users.findFirst({ where: eq(users.email, input.email.toLowerCase()) });
   if (existing) {
     throw new AppError(ERROR_CODES.DUPLICATE_EMAIL, 'An account with this email already exists.', 409);
@@ -252,7 +256,7 @@ export async function provisionWorkspace(input: RegisterInput, actorUserId?: str
   return { tenantId, userId };
 }
 
-export async function createTenant(input: RegisterInput, actorUserId: string) {
+export async function createTenant(input: WorkspaceProvisionInput, actorUserId: string) {
   const { tenantId } = await provisionWorkspace(input, actorUserId);
   return getTenant(tenantId);
 }
@@ -316,6 +320,8 @@ export async function getTenant(id: string) {
   ].filter((row) => row.address || row.phone);
 
   const entitlement = evaluateAppointmentsEntitlement(tenant);
+  const platformMfaEnabled = await getMfaAuthenticationEnabled();
+  const mfaRequired = await isTenantMfaRequired(id);
   return {
     id: tenant.id,
     name: tenant.name,
@@ -325,6 +331,12 @@ export async function getTenant(id: string) {
     subcriptionEnabled: entitlement.subcriptionEnabled,
     subcriptionUntil: entitlement.subcriptionUntil,
     appointmentsAccess: entitlement,
+    mfa: {
+      platformEnabled: platformMfaEnabled,
+      clinicEnabled: tenant.mfaAuthenticationEnabled !== false,
+      mfaAuthenticationEnabled: tenant.mfaAuthenticationEnabled,
+      required: mfaRequired,
+    },
     business: business
       ? {
           id: business.id,
@@ -355,6 +367,7 @@ export async function getTenant(id: string) {
       lastName: user.lastName,
       email: user.email,
       status: user.status,
+      mfaEnabled: Boolean(user.mfaEnabled),
       roles: user.userRoles.map((ur) => ({ id: ur.role.id, name: ur.role.name, code: ur.role.code })),
     })),
   };
@@ -387,12 +400,71 @@ export async function patchTenantSubscription(
   input: {
     subcriptionEnabled?: boolean;
     subcriptionUntil?: number | null;
+    mfaAuthenticationEnabled?: boolean;
   },
   actorUserId: string,
 ) {
   await requireTenant(id);
-  await updateTenantSubscription(id, input, actorUserId);
+  if (input.mfaAuthenticationEnabled !== undefined) {
+    const wasRequired = await isTenantMfaRequired(id);
+    await db
+      .update(tenants)
+      .set({
+        mfaAuthenticationEnabled: input.mfaAuthenticationEnabled,
+        updatedBy: actorUserId,
+        ...updateStamp(),
+      })
+      .where(eq(tenants.id, id));
+    if (wasRequired && !(await isTenantMfaRequired(id))) {
+      await revokeTenantRefreshTokens(id);
+    }
+  }
+  if (input.subcriptionEnabled !== undefined || input.subcriptionUntil !== undefined) {
+    await updateTenantSubscription(id, input, actorUserId);
+  }
   return getTenant(id);
+}
+
+export async function resetTenantUserMfa(
+  tenantId: string,
+  userId: string,
+  actor: AuthUser,
+  meta: { ip?: string; userAgent?: string },
+) {
+  await requireTenant(tenantId);
+  if (userId === actor.userId) {
+    throw new AppError(ERROR_CODES.FORBIDDEN, 'You cannot reset your own two-factor authentication.', 403);
+  }
+  const target = await db.query.users.findFirst({
+    where: and(eq(users.id, userId), eq(users.tenantId, tenantId), isNull(users.deletedAt)),
+    with: { userRoles: { with: { role: true } } },
+  });
+  if (!target) {
+    throw new AppError(ERROR_CODES.USER_NOT_FOUND, 'The requested resource was not found.', 404);
+  }
+  if (
+    !target.tenantId ||
+    target.userRoles.some((ur) => ur.role.code === ROLE_CODES.SUPER_ADMIN)
+  ) {
+    throw new AppError(ERROR_CODES.FORBIDDEN, 'Platform administrator accounts cannot be reset.', 403);
+  }
+  return clearUserMfa(userId, {
+    actorId: actor.userId,
+    tenantId,
+    ip: meta.ip,
+    userAgent: meta.userAgent,
+  });
+}
+
+async function revokeTenantRefreshTokens(tenantId: string) {
+  const tenantUsers = await db.select({ id: users.id }).from(users).where(eq(users.tenantId, tenantId));
+  if (!tenantUsers.length) {
+    return;
+  }
+  await db
+    .update(refreshTokens)
+    .set({ revokedAt: new Date() })
+    .where(and(inArray(refreshTokens.userId, tenantUsers.map((user) => user.id)), isNull(refreshTokens.revokedAt)));
 }
 
 async function requireTenant(id: string) {

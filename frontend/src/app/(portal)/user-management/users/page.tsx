@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { api, ApiClientError } from '@/lib/api';
+import { api, ApiClientError, getActiveLocationId } from '@/lib/api';
 import { formatUtcMillis } from '@/lib/datetime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,6 +69,7 @@ function addressPayload(values: CreateUserForm) {
 }
 
 export default function UsersPage() {
+  const locationId = getActiveLocationId();
   const navigate = usePortalNavigate();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -76,12 +77,12 @@ export default function UsersPage() {
   const [page, setPage] = useState(1);
   const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<Me>('/api/v1/auth/me') });
   const users = useQuery({
-    queryKey: ['users', page],
+    queryKey: ['users', locationId, page],
     queryFn: () =>
       api.get<{ items: UserRow[]; total: number }>(`/api/v1/users?page=${page}&pageSize=${DEFAULT_PAGE_SIZE}`),
   });
   const roles = useQuery({
-    queryKey: ['roles', 'assignable'],
+    queryKey: ['roles', locationId, 'assignable'],
     queryFn: () => api.get<{ items: Role[] }>('/api/v1/roles?assignable=true'),
     enabled: open,
   });

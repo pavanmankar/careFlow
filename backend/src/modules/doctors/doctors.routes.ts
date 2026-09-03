@@ -1,5 +1,12 @@
 import { Router } from 'express';
-import { createDoctorSchema, doctorSlotsQuerySchema, paginationQuerySchema, updateDoctorSchema } from '@/shared/validation';
+import {
+  createDoctorSchema,
+  doctorSlotsQuerySchema,
+  paginationQuerySchema,
+  replacePermissionsSchema,
+  updateDoctorSchema,
+} from '@/shared/validation';
+import * as roles from '@/modules/roles/roles.service';
 import { parseDto } from '@/lib/http';
 import { wrap } from '@/middleware/error-handler';
 import { requireAuth, requirePermissions } from '@/middleware/auth';
@@ -21,6 +28,26 @@ doctorsRouter.get(
       req.query.managed === 'true'
         ? await doctors.listManagedDoctors(parseDto(paginationQuerySchema, req.query))
         : await doctors.listDoctors();
+    res.json({ data });
+  }),
+);
+
+doctorsRouter.get(
+  '/role/permissions',
+  requirePermissions(PERMISSION_CODES.ROLE_ASSIGN_PERMISSIONS),
+  wrap(async (_req, res) => {
+    const data = await roles.getDoctorRolePermissions();
+    res.json({ data });
+  }),
+);
+
+doctorsRouter.put(
+  '/role/permissions',
+  requirePermissions(PERMISSION_CODES.ROLE_ASSIGN_PERMISSIONS),
+  wrap(async (req, res) => {
+    const input = parseDto(replacePermissionsSchema, req.body);
+    const data = await roles.replaceDoctorRolePermissions(input.permissionCodes, req.authUser!);
+    await auditFromReq(req, { action: 'DOCTOR_ROLE_PERMISSIONS_UPDATE', resource: 'role', resourceId: data.id });
     res.json({ data });
   }),
 );
@@ -62,6 +89,17 @@ doctorsRouter.post(
   wrap(async (req, res) => {
     const data = await doctors.setDoctorActive(req.params.userId, false, req.authUser!);
     await auditFromReq(req, { action: 'DOCTOR_DEACTIVATE', resource: 'doctor', resourceId: data.id });
+    res.json({ data });
+  }),
+);
+
+doctorsRouter.post(
+  '/:userId/mfa-reset',
+  wrap(async (req, res) => {
+    const data = await doctors.resetDoctorMfa(req.params.userId, req.authUser!, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
     res.json({ data });
   }),
 );

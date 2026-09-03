@@ -69,6 +69,7 @@ export const tenants = mysqlTable(
     subcriptionEnabled: boolean('subcriptionEnabled').notNull().default(true),
     subcriptionUntil: ms('subcriptionUntil'),
     subcriptionTrialDays: int('subcriptionTrialDays'),
+    mfaAuthenticationEnabled: boolean('mfaAuthenticationEnabled'),
     createdAt: ms('createdAt').notNull(),
     updatedAt: ms('updatedAt').notNull(),
     createdBy: id('createdBy'),
@@ -165,6 +166,9 @@ export const users = mysqlTable(
     phone: varchar('phone', { length: 32 }),
     passwordHash: varchar('passwordHash', { length: 255 }).notNull(),
     status: varchar('status', { length: 32 }).notNull().default('ACTIVE'),
+    mfaEnabled: boolean('mfaEnabled').notNull().default(false),
+    mfaSecretEnc: varchar('mfaSecretEnc', { length: 512 }),
+    mfaBackupCodesHash: json('mfaBackupCodesHash'),
     lastLoginAt: stamp(),
     avatar: varchar('avatar', { length: 512 }),
     timezone: varchar('timezone', { length: 64 }),
@@ -188,6 +192,7 @@ export const roles = mysqlTable(
   {
     id: id().primaryKey(),
     tenantId: id('tenantId'),
+    locationId: id('locationId'),
     name: varchar('name', { length: 128 }).notNull(),
     code: varchar('code', { length: 64 }).notNull(),
     description: varchar('description', { length: 512 }),
@@ -200,8 +205,9 @@ export const roles = mysqlTable(
     deletedAt: stamp(),
   },
   (table) => [
-    uniqueIndex('uk_roles_tenantId_code').on(table.tenantId, table.code),
+    uniqueIndex('uk_roles_tenantId_locationId_code').on(table.tenantId, table.locationId, table.code),
     index('idx_roles_tenantId').on(table.tenantId),
+    index('idx_roles_tenantId_locationId').on(table.tenantId, table.locationId),
     index('idx_roles_code').on(table.code),
   ],
 );
@@ -225,11 +231,13 @@ export const userRoles = mysqlTable(
     userId: id('userId').notNull(),
     roleId: id('roleId').notNull(),
     tenantId: id('tenantId').notNull(),
+    locationId: id('locationId'),
     createdAt: ms('createdAt').notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.userId, table.roleId] }),
     index('idx_user_roles_tenantId').on(table.tenantId),
+    index('idx_user_roles_tenantId_locationId').on(table.tenantId, table.locationId),
     index('idx_user_roles_roleId').on(table.roleId),
   ],
 );
@@ -257,6 +265,7 @@ export const patients = mysqlTable(
   {
     id: id().primaryKey(),
     tenantId: id('tenantId').notNull(),
+    locationId: id('locationId'),
     firstName: varchar('firstName', { length: 128 }).notNull(),
     lastName: varchar('lastName', { length: 128 }).notNull(),
     phone: varchar('phone', { length: 32 }).notNull(),
@@ -276,8 +285,9 @@ export const patients = mysqlTable(
     deletedAt: stamp(),
   },
   (table) => [
-    uniqueIndex('patients_tenantId_phone_key').on(table.tenantId, table.phone),
+    uniqueIndex('patients_tenantId_locationId_phone_key').on(table.tenantId, table.locationId, table.phone),
     index('patients_tenantId_idx').on(table.tenantId),
+    index('patients_tenantId_locationId_idx').on(table.tenantId, table.locationId),
   ],
 );
 
@@ -286,6 +296,7 @@ export const doctorProfiles = mysqlTable(
   {
     id: id().primaryKey(),
     tenantId: id('tenantId').notNull(),
+    locationId: id('locationId'),
     userId: id('userId').notNull(),
     specialty: varchar('specialty', { length: 128 }).notNull().default(''),
     createdAt: ms('createdAt').notNull(),
@@ -294,6 +305,7 @@ export const doctorProfiles = mysqlTable(
   (table) => [
     uniqueIndex('doctor_profiles_userId_key').on(table.userId),
     index('doctor_profiles_tenantId_idx').on(table.tenantId),
+    index('doctor_profiles_tenantId_locationId_idx').on(table.tenantId, table.locationId),
   ],
 );
 
@@ -477,6 +489,24 @@ export const auditLogs = mysqlTable(
   ],
 );
 
+export const userConsentRecords = mysqlTable(
+  'user_consent_records',
+  {
+    id: id().primaryKey(),
+    userId: id('userId').notNull(),
+    tenantId: id('tenantId'),
+    documentType: varchar('documentType', { length: 32 }).notNull(),
+    documentVersion: varchar('documentVersion', { length: 32 }).notNull(),
+    acceptedAt: ms('acceptedAt').notNull(),
+    ip: varchar('ip', { length: 64 }),
+    userAgent: varchar('userAgent', { length: 512 }),
+  },
+  (table) => [
+    index('user_consent_records_userId_documentType_idx').on(table.userId, table.documentType),
+    index('user_consent_records_tenantId_idx').on(table.tenantId),
+  ],
+);
+
 export const idempotencyKeys = mysqlTable(
   'idempotency_keys',
   {
@@ -538,6 +568,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 
 export const rolesRelations = relations(roles, ({ one, many }) => ({
   tenant: one(tenants, { fields: [roles.tenantId], references: [tenants.id] }),
+  location: one(locations, { fields: [roles.locationId], references: [locations.id] }),
   rolePermissions: many(rolePermissions),
   userRoles: many(userRoles),
 }));
@@ -551,6 +582,7 @@ export const userRolesRelations = relations(userRoles, ({ one }) => ({
   user: one(users, { fields: [userRoles.userId], references: [users.id] }),
   role: one(roles, { fields: [userRoles.roleId], references: [roles.id] }),
   tenant: one(tenants, { fields: [userRoles.tenantId], references: [tenants.id] }),
+  location: one(locations, { fields: [userRoles.locationId], references: [locations.id] }),
 }));
 
 export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
@@ -559,20 +591,24 @@ export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
 
 export const patientsRelations = relations(patients, ({ one, many }) => ({
   tenant: one(tenants, { fields: [patients.tenantId], references: [tenants.id] }),
+  location: one(locations, { fields: [patients.locationId], references: [locations.id] }),
   appointments: many(appointments),
 }));
 
 export const inventoryItemsRelations = relations(inventoryItems, ({ one }) => ({
   tenant: one(tenants, { fields: [inventoryItems.tenantId], references: [tenants.id] }),
+  location: one(locations, { fields: [inventoryItems.locationId], references: [locations.id] }),
 }));
 
 export const doctorProfilesRelations = relations(doctorProfiles, ({ one }) => ({
   tenant: one(tenants, { fields: [doctorProfiles.tenantId], references: [tenants.id] }),
+  location: one(locations, { fields: [doctorProfiles.locationId], references: [locations.id] }),
   user: one(users, { fields: [doctorProfiles.userId], references: [users.id] }),
 }));
 
 export const appointmentsRelations = relations(appointments, ({ one, many }) => ({
   tenant: one(tenants, { fields: [appointments.tenantId], references: [tenants.id] }),
+  location: one(locations, { fields: [appointments.locationId], references: [locations.id] }),
   patient: one(patients, { fields: [appointments.patientId], references: [patients.id] }),
   doctor: one(users, {
     fields: [appointments.doctorUserId],

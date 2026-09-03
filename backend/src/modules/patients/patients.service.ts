@@ -4,6 +4,7 @@ import { contains, db, likeContains } from '@/db/client';
 import { appointments, patients } from '@/db/schema';
 import { AppError } from '@/lib/errors';
 import { getRequestContext } from '@/lib/context';
+import { requireActiveLocationId } from '@/lib/location-scope';
 
 function requireTenant() {
   const tenantId = getRequestContext()?.tenantId;
@@ -20,11 +21,13 @@ export async function listPatients(query: {
   sortDirection?: 'asc' | 'desc';
 }) {
   const tenantId = requireTenant();
+  const locationId = requireActiveLocationId();
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? 10;
   const sortDirection = query.sortDirection ?? 'asc';
   const filters = [
     eq(patients.tenantId, tenantId),
+    eq(patients.locationId, locationId),
     isNull(patients.deletedAt),
     ...(query.search
       ? [
@@ -58,11 +61,17 @@ export async function listPatients(query: {
 
 export async function getPatient(id: string) {
   const tenantId = requireTenant();
+  const locationId = requireActiveLocationId();
   const patient = await db.query.patients.findFirst({
-    where: and(eq(patients.id, id), eq(patients.tenantId, tenantId), isNull(patients.deletedAt)),
+    where: and(
+      eq(patients.id, id),
+      eq(patients.tenantId, tenantId),
+      eq(patients.locationId, locationId),
+      isNull(patients.deletedAt),
+    ),
     with: {
       appointments: {
-        where: isNull(appointments.deletedAt),
+        where: and(isNull(appointments.deletedAt), eq(appointments.locationId, locationId)),
         orderBy: desc(appointments.startsAt),
         with: {
           doctor: { with: { doctorProfile: true } },

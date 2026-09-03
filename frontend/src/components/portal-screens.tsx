@@ -9,6 +9,7 @@ import PatientsPage from '@/app/(portal)/patients/page';
 import PatientDetailPage from '@/app/(portal)/patients/[id]/page';
 import DoctorsPage from '@/app/(portal)/doctors/page';
 import DoctorDetailPage from '@/app/(portal)/doctors/[id]/page';
+import DoctorPermissionsPage from '@/app/(portal)/doctors/permissions/page';
 import DepartmentsPage from '@/app/(portal)/departments/page';
 import DepartmentDetailPage from '@/app/(portal)/departments/[id]/page';
 import CalendarPage from '@/app/(portal)/calendar/page';
@@ -30,6 +31,7 @@ const exact: Record<string, ComponentType> = {
   '/appointments': AppointmentsPage,
   '/patients': PatientsPage,
   '/doctors': DoctorsPage,
+  '/doctors/permissions': DoctorPermissionsPage,
   '/departments': DepartmentsPage,
   '/calendar': CalendarPage,
   '/inventory': InventoryPage,

@@ -3,15 +3,17 @@ import { paginationQuerySchema } from '@/shared/validation';
 import { parseDto } from '@/lib/http';
 import { wrap } from '@/middleware/error-handler';
 import { requireAuth, requirePermissions } from '@/middleware/auth';
+import { optionalLocation } from '@/middleware/location';
 import { PERMISSION_CODES } from '@/shared/types';
 import * as patients from './patients.service';
 import { auditFromReq } from '@/lib/audit';
 
 export const patientsRouter = Router();
 
+patientsRouter.use(requireAuth, optionalLocation);
+
 patientsRouter.get(
   '/',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.PATIENT_READ),
   wrap(async (req, res) => {
     const query = parseDto(paginationQuerySchema, req.query);
@@ -22,7 +24,6 @@ patientsRouter.get(
 
 patientsRouter.get(
   '/:id',
-  requireAuth,
   requirePermissions(PERMISSION_CODES.PATIENT_READ),
   wrap(async (req, res) => {
     const data = await patients.getPatient(req.params.id);

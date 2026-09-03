@@ -22,6 +22,12 @@ interface TenantDetail {
   status: string;
   subcriptionEnabled: boolean;
   subcriptionUntil: number | null;
+  mfa?: {
+    platformEnabled: boolean;
+    clinicEnabled: boolean;
+    mfaAuthenticationEnabled: boolean | null;
+    required: boolean;
+  };
   business: {
     name: string;
     legalName: string | null;
@@ -46,11 +52,13 @@ interface TenantDetail {
     lastName: string;
     email: string;
     status: string;
+    mfaEnabled: boolean;
     roles: Array<{ name: string }>;
   }>;
 }
 
 interface Me {
+  user: { id: string };
   roles: string[];
 }
 
@@ -80,15 +88,19 @@ export default function TenantDetailPage() {
   const navigate = usePortalNavigate();
   const qc = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [mfaResetUser, setMfaResetUser] = useState<TenantDetail['employees'][number] | null>(null);
+  const [mfaResetError, setMfaResetError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [subEnabled, setSubEnabled] = useState(true);
   const [subUntil, setSubUntil] = useState('');
+  const [mfaEnabled, setMfaEnabled] = useState(true);
   const [subError, setSubError] = useState<string | null>(null);
   const subscriptionCardRef = useRef<HTMLDivElement>(null);
   const [pairHeight, setPairHeight] = useState<number | null>(null);
 
   const me = useQuery({ queryKey: ['me'], queryFn: () => api.get<Me>('/api/v1/auth/me') });
   const isSuperAdmin = me.data?.roles.includes('SUPER_ADMIN') ?? false;
+  const currentUserId = me.data?.user.id;
   const tenant = useQuery({
     queryKey: ['tenants', params.id],
     queryFn: () => api.get<TenantDetail>(`/api/v1/tenants/${params.id}`),
@@ -107,6 +119,7 @@ export default function TenantDetailPage() {
     }
     setSubEnabled(tenant.data.subcriptionEnabled);
     setSubUntil(dateInputValue(tenant.data.subcriptionUntil));
+    setMfaEnabled(tenant.data.mfa?.clinicEnabled ?? true);
   }, [tenant.data]);
 
   const toggle = useMutation({
@@ -127,12 +140,24 @@ export default function TenantDetailPage() {
       api.patch(`/api/v1/tenants/${params.id}/subscription`, {
         subcriptionEnabled: subEnabled,
         subcriptionUntil: subUntil ? endOfUtcDay(subUntil) : null,
+        mfaAuthenticationEnabled: mfaEnabled,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tenants'] });
       setSubError(null);
     },
     onError: (err) => setSubError(err instanceof ApiClientError ? err.message : 'Unable to update subscription'),
+  });
+
+  const resetEmployeeMfa = useMutation({
+    mutationFn: (userId: string) => api.post(`/api/v1/tenants/${params.id}/users/${userId}/mfa-reset`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tenants', params.id] });
+      setMfaResetUser(null);
+      setMfaResetError(null);
+    },
+    onError: (err) =>
+      setMfaResetError(err instanceof ApiClientError ? err.message : 'Unable to reset two-factor authentication'),
   });
 
   const data = tenant.data;
@@ -144,6 +169,7 @@ export default function TenantDetailPage() {
         subcriptionUntil: data.subcriptionUntil,
       })
     : null;
+  const platformMfaEnabled = data?.mfa?.platformEnabled ?? false;
 
   useLayoutEffect(() => {
     const node = subscriptionCardRef.current;
@@ -155,7 +181,7 @@ export default function TenantDetailPage() {
     const observer = new ResizeObserver(sync);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [data, subEnabled, subUntil, subError, subscription]);
+  }, [data, subEnabled, subUntil, subError, subscription, mfaEnabled, platformMfaEnabled]);
 
   return (
     <div className="space-y-6">
@@ -219,6 +245,23 @@ export default function TenantDetailPage() {
                 />
                 Appointments &amp; Calendar access enabled
               </label>
+              <div className="border-t border-slate-100 pt-4">
+                <label className="flex items-center gap-2 text-sm text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={mfaEnabled}
+                    disabled={!platformMfaEnabled}
+                    onChange={(event) => setMfaEnabled(event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 disabled:opacity-50"
+                  />
+                  Require two-factor authentication for clinic users
+                </label>
+                <p className="mt-2 text-xs text-slate-400">
+                  {platformMfaEnabled
+                    ? 'Turn off only for this clinic. New clinics follow the platform default in Settings.'
+                    : 'Enable platform MFA in Settings before requiring it for individual clinics.'}
+                </p>
+              </div>
               <div>
                 <Label>Access end date</Label>
                 <DatePicker
@@ -231,7 +274,7 @@ export default function TenantDetailPage() {
               </div>
               {subError && <p className="text-sm text-red-600">{subError}</p>}
               <Button type="submit" disabled={saveSubscription.isPending || !data}>
-                {saveSubscription.isPending ? 'Saving…' : 'Save subscription'}
+                {saveSubscription.isPending ? 'Saving…' : 'Save clinic settings'}
               </Button>
             </form>
           </Card>
@@ -267,10 +310,13 @@ export default function TenantDetailPage() {
             <Th>Email</Th>
             <Th>Role</Th>
             <Th>Status</Th>
+            <Th>Actions</Th>
           </tr>
         </TableHead>
         <tbody>
-          {data?.employees.map((user) => (
+          {data?.employees.map((user) => {
+            const canResetMfa = Boolean(user.mfaEnabled && currentUserId && user.id !== currentUserId);
+            return (
             <Tr key={user.id}>
               <Td className="font-medium text-slate-900">
                 {user.firstName} {user.lastName}
@@ -280,11 +326,25 @@ export default function TenantDetailPage() {
               <Td>
                 <StatusBadge status={user.status} />
               </Td>
+              <Td>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!canResetMfa || resetEmployeeMfa.isPending}
+                  onClick={() => {
+                    setMfaResetError(null);
+                    setMfaResetUser(user);
+                  }}
+                >
+                  Reset 2FA
+                </Button>
+              </Td>
             </Tr>
-          ))}
+            );
+          })}
           {data && data.employees.length === 0 && (
             <tr>
-              <td className="px-6 py-10 text-center text-slate-500" colSpan={4}>
+              <td className="px-6 py-10 text-center text-slate-500" colSpan={5}>
                 No employees in this workspace.
               </td>
             </tr>
@@ -318,6 +378,44 @@ export default function TenantDetailPage() {
             ? 'Users in this workspace will not be able to sign in until it is activated again. Individually deactivated staff stay inactive.'
             : 'This workspace and its business will be marked active. Users can sign in again if their accounts are active.'}
         </p>
+      </Modal>
+
+      <Modal
+        open={Boolean(mfaResetUser)}
+        title="Reset two-factor authentication"
+        onClose={() => {
+          setMfaResetUser(null);
+          setMfaResetError(null);
+        }}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setMfaResetUser(null);
+                setMfaResetError(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={!mfaResetUser || resetEmployeeMfa.isPending}
+              onClick={() => mfaResetUser && resetEmployeeMfa.mutate(mfaResetUser.id)}
+            >
+              {resetEmployeeMfa.isPending ? 'Resetting…' : 'Reset 2FA'}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-slate-600">
+          {mfaResetUser
+            ? `This will remove ${mfaResetUser.firstName} ${mfaResetUser.lastName}'s authenticator setup and sign them out of all devices. They must scan a new QR code on their next sign-in.`
+            : ''}
+        </p>
+        {mfaResetError && <p className="mt-3 text-sm text-red-600">{mfaResetError}</p>}
       </Modal>
     </div>
   );

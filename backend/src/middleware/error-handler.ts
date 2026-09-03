@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { AppError } from '@/lib/errors';
 import { ERROR_CODES } from '@/shared/types';
+import { logger } from '@/lib/logger';
 
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (err instanceof AppError) {
@@ -9,7 +10,7 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
   if (err instanceof Error && err.message === 'TENANT_MISSING') {
     return res.status(404).json({ code: ERROR_CODES.TENANT_NOT_FOUND, message: 'Workspace context is required.' });
   }
-  console.error(err);
+  logger.error({ err }, 'Unhandled error');
   return res.status(500).json({ code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' });
 }
 

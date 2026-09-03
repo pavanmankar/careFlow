@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { loginSchema, registerSchema, updateMeSchema, updateMeRolesSchema } from '@/shared/validation';
+import { loginSchema, registerSchema, acceptLegalSchema, updateMeSchema, updateMeRolesSchema } from '@/shared/validation';
 import { parseDto } from '@/lib/http';
 import { wrap } from '@/middleware/error-handler';
 import { requireAuth } from '@/middleware/auth';
@@ -19,6 +19,16 @@ function setRefreshCookie(res: Response, token: string) {
   });
 }
 
+function respondAuthResult(res: Response, result: auth.LoginResult, status = 200) {
+  if ('refreshToken' in result && result.refreshToken) {
+    setRefreshCookie(res, result.refreshToken);
+    const { refreshToken: _ignored, ...data } = result;
+    res.status(status).json({ data });
+    return;
+  }
+  res.status(status).json({ data: result });
+}
+
 authRouter.post(
   '/register',
   wrap(async (req, res) => {
@@ -27,9 +37,7 @@ authRouter.post(
       ip: req.ip,
       userAgent: req.headers['user-agent'],
     });
-    setRefreshCookie(res, result.refreshToken);
-    const { refreshToken: _ignored, ...data } = result;
-    res.status(201).json({ data });
+    respondAuthResult(res, result, 201);
   }),
 );
 
@@ -41,9 +49,7 @@ authRouter.post(
       ip: req.ip,
       userAgent: req.headers['user-agent'],
     });
-    setRefreshCookie(res, result.refreshToken);
-    const { refreshToken: _ignored, ...data } = result;
-    res.json({ data });
+    respondAuthResult(res, result);
   }),
 );
 
@@ -55,9 +61,7 @@ authRouter.post(
       ip: req.ip,
       userAgent: req.headers['user-agent'],
     });
-    setRefreshCookie(res, result.refreshToken);
-    const { refreshToken: _ignored, ...data } = result;
-    res.json({ data });
+    respondAuthResult(res, result);
   }),
 );
 
@@ -68,6 +72,19 @@ authRouter.post(
     await auth.logout(token, { ip: req.ip, userAgent: req.headers['user-agent'] });
     res.clearCookie(REFRESH_COOKIE, { path: '/' });
     res.json({ data: { loggedOut: true } });
+  }),
+);
+
+authRouter.post(
+  '/legal/accept',
+  requireAuth,
+  wrap(async (req, res) => {
+    const input = parseDto(acceptLegalSchema, req.body);
+    const data = await auth.acceptLegal(req.authUser!.userId, req.authUser!.tenantId, input, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    res.json({ data });
   }),
 );
 

@@ -6,6 +6,19 @@ import { utcNowMs } from '@/lib/time';
 import * as schema from './schema';
 import { roles } from './schema';
 
+function mysqlSslOptions(isLocal: boolean) {
+  if (isLocal) {
+    return undefined;
+  }
+  if (config.nodeEnv === 'production') {
+    if (config.databaseSslCa) {
+      return { ca: config.databaseSslCa, rejectUnauthorized: true };
+    }
+    return { rejectUnauthorized: true };
+  }
+  return { rejectUnauthorized: false };
+}
+
 function mysqlPoolOptions() {
   const raw = config.databaseUrl.replace('@localhost:', '@127.0.0.1:');
   const parsed = new URL(raw);
@@ -23,7 +36,7 @@ function mysqlPoolOptions() {
     enableKeepAlive: true,
     connectTimeout: isLocal ? 5000 : 20000,
     timezone: 'Z' as const,
-    ssl: isLocal ? undefined : { rejectUnauthorized: false },
+    ssl: mysqlSslOptions(isLocal),
   };
 }
 

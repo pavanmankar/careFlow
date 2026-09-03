@@ -11,13 +11,9 @@
     "test": "jest --config jest.config.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:seed": "tsx src/db/seed.ts",
+    "db:reset": "tsx src/db/reset.ts",
+    "db:fresh": "npm run db:reset && npm run db:migrate",
     "db:seed:demo": "tsx src/db/seed-demo.ts",
-    "db:seed:public-demo": "tsx src/db/seed-public-demo.ts",
-    "db:migrate-metadata": "tsx src/db/run-migrate-metadata.ts",
-    "db:migrate-subscription": "tsx src/db/run-migrate-subscription.ts",
-    "db:migrate-location-branch": "tsx src/db/run-migrate-location-branch.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
@@ -32,6 +28,10 @@
     "ioredis": "^5.4.2",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.23.3",
+    "otplib": "^13.5.0",
+    "pino": "^10.3.1",
+    "qrcode": "^1.5.4",
+    "rate-limit-redis": "^4.3.1",
     "swagger-ui-express": "^5.0.1",
     "tsx": "^4.19.2",
     "ulid": "^3.0.2",
@@ -44,12 +44,14 @@
     "@types/jest": "^29.5.14",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.10.5",
+    "@types/qrcode": "^1.5.6",
     "@types/supertest": "^6.0.2",
     "@types/swagger-ui-express": "^4.1.7",
     "drizzle-kit": "^0.31.10",
     "jest": "^29.7.0",
     "supertest": "^7.0.0",
     "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
     "typescript": "^5.7.2"
   }
 }

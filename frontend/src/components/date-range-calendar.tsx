@@ -358,6 +358,7 @@ export function DateRangeCalendar({
   compact = false,
   min,
   max,
+  disabled = false,
 }: {
   from: string | null;
   to: string | null;
@@ -366,6 +367,7 @@ export function DateRangeCalendar({
   compact?: boolean;
   min?: string;
   max?: string;
+  disabled?: boolean;
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
@@ -407,15 +409,19 @@ export function DateRangeCalendar({
           open={open}
           compact={compact}
           wide
+          disabled={disabled}
           filled={Boolean(from && to)}
           display={display}
           onClick={() => {
+            if (disabled) {
+              return;
+            }
             setCursor(from ? fromYmd(from) : new Date());
             setPicking(null);
             setOpen((current) => !current);
           }}
         />
-        {!compact && (from || to) ? (
+        {!compact && (from || to) && !disabled ? (
           <Button
             type="button"
             variant="secondary"

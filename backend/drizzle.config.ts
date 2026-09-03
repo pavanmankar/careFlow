@@ -1,7 +1,7 @@
 import { defineConfig } from 'drizzle-kit';
-import { config as loadEnv } from 'dotenv';
+import { loadEnvFiles } from './src/lib/load-env';
 
-loadEnv();
+loadEnvFiles();
 
 const databaseUrl = process.env.DATABASE_URL ?? '';
 const parsed = databaseUrl ? new URL(databaseUrl) : null;
